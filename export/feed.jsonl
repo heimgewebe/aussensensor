@@ -1,2 +1,10 @@
 []
 {"ts":"2025-10-12T06:50:50Z","type":"news","source":"aussensensor-local","title":"Testevent","summary":"Kurztest","url":"https://example.org","tags":["demo"]}
+{
+  "ts": "2025-10-12T08:11:02+00:00",
+  "type": "news",
+  "source": "rss:demo",
+  "title": "Bindung OK",
+  "summary": "Kurz",
+  "url": "https://example.org"
+}
