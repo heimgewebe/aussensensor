@@ -1,0 +1,44 @@
+name: jsonl-guard
+on:
+  push:
+    paths:
+      - "**/*.jsonl"
+      - ".github/workflows/jsonl-guard.yml"
+  pull_request:
+    paths:
+      - "**/*.jsonl"
+      - ".github/workflows/jsonl-guard.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Ensure JSONL lines are single, valid JSON objects
+        shell: bash
+        run: |
+          shopt -s globstar nullglob
+          failed=0
+          for f in **/*.jsonl; do
+            echo "::group::check $f"
+            lineno=0
+            while IFS= read -r line || [[ -n "$line" ]]; do
+              lineno=$((lineno+1))
+              [[ -n "${line// }" ]] || continue
+              if ! printf '%s\n' "$line" | jq -e . >/dev/null 2>&1; then
+                echo "::error file=$f,line=$lineno::Invalid JSON (line must be a complete JSON object)."
+                failed=1
+              fi
+              # Fail if the object appears split across multiple lines (heuristic: trailing comma or open brace-only)
+              [[ "$line" =~ ,[[:space:]]*$ ]] && { echo "::error file=$f,line=$lineno::Line ends with comma -> multiline JSON not allowed."; failed=1; }
+              [[ "$line" =~ ^[[:space:]]*[{[]?[[:space:]]*$ ]] && { echo "::warning file=$f,line=$lineno::Suspicious structural-only line."; failed=1; }
+            done < "$f"
+            echo "::endgroup::"
+          done
+          exit $failed
