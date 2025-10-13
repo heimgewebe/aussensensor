@@ -1,0 +1,11 @@
+name: contracts-validate
+permissions:
+  contents: read
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    uses: heimgewebe/metarepo/.github/workflows/contracts-validate.yml@contracts-v1
