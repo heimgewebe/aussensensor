@@ -1,0 +1,32 @@
+name: push-leitstand
+
+on:
+  workflow_dispatch:
+    inputs:
+      lines:
+        description: "Number of most recent feed entries to push"
+        required: false
+        default: "1"
+
+permissions:
+  contents: read
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure ingest URL secret is available
+        env:
+          LEITSTAND_INGEST_URL: ${{ secrets.LEITSTAND_INGEST_URL }}
+        run: |
+          if [ -z "${LEITSTAND_INGEST_URL:-}" ]; then
+            echo "::error::LEITSTAND_INGEST_URL secret is required."
+            exit 1
+          fi
+      - name: Push feed to Leitstand
+        env:
+          LEITSTAND_INGEST_URL: ${{ secrets.LEITSTAND_INGEST_URL }}
+          LEITSTAND_TOKEN: ${{ secrets.LEITSTAND_TOKEN }}
+        run: |
+          scripts/push_leitstand.sh "${{ github.event.inputs.lines }}"
