@@ -1,4 +1,6 @@
 name: contracts-validate
+permissions:
+  contents: read
 
 on:
   push:
