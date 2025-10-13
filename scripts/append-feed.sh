@@ -108,9 +108,11 @@ json_obj=$(jq -n \
   + (if $url != "" then {url: $url} else {} end)
   + (if ($tags | length) > 0 then {tags: $tags} else {} end)')
 
-if ! echo "$json_obj" | check-jsonschema --schemafile contracts/aussen.event.schema.json -; then
+if ! echo "$json_obj" | check-jsonschema --schemafile contracts/aussen.event.schema.json --stdin-file -; then
   echo "Validation failed." >&2
   exit 1
 fi
+
+echo "Validation OK."
 
 echo "$json_obj" >> "$output_file"
