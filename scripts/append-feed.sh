@@ -1,4 +1,8 @@
 set -euo pipefail
+  +#!/usr/bin/env bash
+  +set -euo pipefail
+
+-
 
 +#
 +# append-feed.sh
@@ -143,7 +147,7 @@ set -euo pipefail
 
 +# --- Tags in JSON umwandeln --------------------------------------------------
 +
-+if [[ "$tags_mode" == "positional" ]]; then
++if [[ "${tags_mode:-}" == "positional" ]]; then
 
 * if (( ${#pos_tags[@]:-0} > 0 )); then
 * tags_json="$(printf '%s\n' "${pos_tags[@]}" | jq -R . | jq -s .)"
@@ -223,6 +227,6 @@ set -euo pipefail
 +exit 0
 +
 +# end
-+
+*** End Patch
 EOF
 )
