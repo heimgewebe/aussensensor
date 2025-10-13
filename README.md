@@ -31,7 +31,10 @@ aussensensor kuratiert externe Informationsquellen (Newsfeeds, Wetter, Lagebilde
 ## Nutzung
 ### Ereignis hinzufügen
 ```bash
-./scripts/append-feed.sh <source> <type> <title> <summary> <url> [tags...]
+./scripts/append-feed.sh -t news -s rss:demo -T "Test" -S "Kurz" -u "https://example.org" -g "tag1,tag2"
+# For more options, run ./scripts/append-feed.sh -h
+export LEITSTAND_INGEST_URL="https://<leitstand-url>/ingest/aussen"
+./scripts/push_leitstand.sh 1
 ```
 - `source`: Menschlich lesbarer Bezeichner (z. B. `heise`, `dwd`).
 - `type`: Eine der Kategorien `news|sensor|project|alert`.
