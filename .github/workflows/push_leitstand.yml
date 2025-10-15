@@ -1,32 +1,58 @@
-name: push-leitstand
+name: Push feed to Leitstand
 
 on:
   workflow_dispatch:
     inputs:
-      lines:
-        description: "Number of most recent feed entries to push"
+      url:
+        description: "Optional: Override Leitstand ingest URL"
         required: false
-        default: "1"
-
-permissions:
-  contents: read
+        type: string
+      dry_run:
+        description: "Nur Testlauf ohne HTTP-Request"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   push:
+    name: Validate and push feed
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Ensure ingest URL secret is available
-        env:
-          LEITSTAND_INGEST_URL: ${{ secrets.LEITSTAND_INGEST_URL }}
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate feed against schema
         run: |
-          if [ -z "${LEITSTAND_INGEST_URL:-}" ]; then
-            echo "::error::LEITSTAND_INGEST_URL secret is required."
-            exit 1
+          set -euo pipefail
+          if [ ! -f export/feed.jsonl ] || [ ! -s export/feed.jsonl ]; then
+            echo "Keine Einträge in export/feed.jsonl – Validierung übersprungen."
+            exit 0
           fi
+          tmp_dir="$(mktemp -d)"
+          trap 'rm -rf "$tmp_dir"' EXIT
+          cp export/feed.jsonl "$tmp_dir/feed.jsonl"
+          while IFS= read -r line || [ -n "$line" ]; do
+            if [ -z "${line// }" ]; then
+              continue
+            fi
+            printf '%s\n' "$line" > export/feed.jsonl
+            npx -y ajv-cli@5 validate --spec=draft2020 --strict=false --validate-formats=false -s contracts/aussen.event.schema.json -d export/feed.jsonl
+          done < "$tmp_dir/feed.jsonl"
+          mv "$tmp_dir/feed.jsonl" export/feed.jsonl
+
       - name: Push feed to Leitstand
         env:
-          LEITSTAND_INGEST_URL: ${{ secrets.LEITSTAND_INGEST_URL }}
+          LEITSTAND_INGEST_URL: ${{ inputs.url != '' && inputs.url || secrets.LEITSTAND_INGEST_URL }}
           LEITSTAND_TOKEN: ${{ secrets.LEITSTAND_TOKEN }}
         run: |
-          scripts/push_leitstand.sh "${{ github.event.inputs.lines }}"
+          set -euo pipefail
+          DRY_RUN_FLAG=""
+          if [ "${{ inputs.dry_run }}" = 'true' ]; then
+            DRY_RUN_FLAG="--dry-run"
+          fi
+          scripts/push_leitstand.sh $DRY_RUN_FLAG
