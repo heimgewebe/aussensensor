@@ -36,6 +36,8 @@ OUTPUT_FILE="$REPO_ROOT/export/feed.jsonl"
 
 # --- Parameter-Parsen (Dual-Modus) -------------------------------------------
 
+declare -a pos_tags=()
+
 if [[ "${1:-}" != "-"* && "$#" -ge 5 ]]; then
   # Positionsmodus
   source="$1"; type="$2"; title="$3"; summary="$4"; url="$5"; shift 5
@@ -93,8 +95,8 @@ fi
 need jq
 
 if [[ "${tags_mode:-}" == "positional" ]]; then
-  if (( ${#pos_tags[@]:-0} > 0 )); then
-    tags_json="$(printf '%s\n' "${pos_tags[@]}" | jq -R . | jq -s .)"
+  if (( ${#pos_tags[@]} > 0 )); then
+    tags_json="$(printf '%s\n' "${pos_tags[@]}" | jq -R 'select(length > 0)' | jq -s .)"
   else
     tags_json='[]'
   fi
@@ -116,7 +118,7 @@ ts="$(date -Iseconds -u)"
 mkdir -p "$(dirname "$OUTPUT_FILE")"
 
 json_obj="$(
-  jq -n \
+  jq -cn \
     --arg ts "$ts" \
     --arg type "$type" \
     --arg source "$source" \
@@ -128,18 +130,18 @@ json_obj="$(
       ts: $ts,
       type: $type,
       source: $source,
-      title: $title
-    }
-    + (if ($summary // "") != "" then {summary: $summary} else {} end)
-    + (if ($url // "") != "" then {url: $url} else {} end)
-    + (if ($tags | length) > 0 then {tags: $tags} else {} end)'
+      title: $title,
+      summary: ($summary // ""),
+      url: ($url // ""),
+      tags: ($tags // [])
+    }'
 )"
 
 # --- Schema-Validierung (stdin korrekt angeben) ------------------------------
 
 need check-jsonschema
 
-if ! echo "$json_obj" | check-jsonschema --schemafile "$SCHEMA_PATH" --stdin-file - >/dev/null; then
+if ! printf '%s' "$json_obj" | check-jsonschema --schemafile "$SCHEMA_PATH" --stdin-file - >/dev/null; then
   echo "Validation failed." >&2
   exit 1
 fi
