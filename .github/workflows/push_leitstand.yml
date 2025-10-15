@@ -1,4 +1,6 @@
 name: Push feed to Leitstand
+permissions:
+  contents: read
 
 on:
   workflow_dispatch:
