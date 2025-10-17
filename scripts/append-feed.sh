@@ -139,9 +139,9 @@ json_obj="$(
 
 # --- Schema-Validierung (stdin korrekt angeben) ------------------------------
 need check-jsonschema
-# WICHTIG: --stdin-file aktivieren; kein '-' als Pseudo-Dateiname übergeben.
-#          Damit liest check-jsonschema zuverlässig von stdin.
-if ! printf '%s' "$json_obj" | check-jsonschema --schemafile "$SCHEMA_PATH" --stdin-file stdin >/dev/null; then
+# WICHTIG: check-jsonschema erwartet trotz --stdin-file ein Positionsargument.
+#          Darum: '--stdin-file <label>' setzen UND '-' als Instanzdatei übergeben.
+if ! printf '%s' "$json_obj" | check-jsonschema --schemafile "$SCHEMA_PATH" --stdin-file stdin - >/dev/null; then
   echo "Validation failed." >&2
   exit 1
 fi
