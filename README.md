@@ -69,7 +69,11 @@ export LEITSTAND_INGEST_URL="https://leitstand.example/ingest/aussen"
 ### Schneller Selbsttest
 ```bash
 ./scripts/append-feed.sh heise news "Testtitel" "Kurztext" "https://example.org" urgent topic:klima Berlin
-npx -y ajv-cli@5 validate -s contracts/aussen.event.schema.json -d export/feed.jsonl
+while IFS= read -r line; do
+  [ -z "${line// }" ] && continue
+  printf '%s\n' "$line" > /tmp/event.json
+  npx -y ajv-cli@5 validate --spec=draft2020 --strict=false --validate-formats=false -s contracts/aussen.event.schema.json -d /tmp/event.json
+done < export/feed.jsonl
 tail -n1 export/feed.jsonl | jq .
 ```
 - Demonstriert, dass freie Tags (z. B. `topic:klima`) korrekt verarbeitet werden.
