@@ -29,8 +29,6 @@ need() {
   command -v "$1" >/dev/null 2>&1 || { echo "Fehlt: $1" >&2; exit 1; }
 }
 
-need check-jsonschema
-
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SCHEMA_PATH="$REPO_ROOT/contracts/aussen.event.schema.json"
@@ -140,8 +138,10 @@ json_obj="$(
 )"
 
 # --- Schema-Validierung (stdin korrekt angeben) ------------------------------
-
-if ! printf '%s' "$json_obj" | check-jsonschema --schemafile "$SCHEMA_PATH" - >/dev/null; then
+need check-jsonschema
+# WICHTIG: --stdin-file aktivieren; kein '-' als Pseudo-Dateiname übergeben.
+#          Damit liest check-jsonschema zuverlässig von stdin.
+if ! printf '%s' "$json_obj" | check-jsonschema --schemafile "$SCHEMA_PATH" --stdin-file stdin >/dev/null; then
   echo "Validation failed." >&2
   exit 1
 fi
