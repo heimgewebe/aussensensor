@@ -93,6 +93,7 @@ fi
 # --- Tags in JSON umwandeln --------------------------------------------------
 
 need jq
+need npx
 
 if [[ "${tags_mode:-}" == "positional" ]]; then
   if (( ${#pos_tags[@]} > 0 )); then
@@ -127,24 +128,33 @@ json_obj="$(
     --arg url "${url:-}" \
     --argjson tags "$tags_json" \
     '{
-      ts: $ts,
-      type: $type,
-      source: $source,
-      title: $title,
-      summary: ($summary // ""),
-      url: ($url // ""),
-      tags: ($tags // [])
+      "ts": $ts,
+      "type": $type,
+      "source": $source,
+      "title": $title,
+      "summary": ($summary // ""),
+      "url": ($url // ""),
+      "tags": ($tags // [])
     }'
 )"
 
-# --- Schema-Validierung (stdin korrekt angeben) ------------------------------
-need check-jsonschema
-# WICHTIG: check-jsonschema erwartet trotz --stdin-file ein Positionsargument.
-#          Darum: '--stdin-file <label>' setzen UND '-' als Instanzdatei übergeben.
-if ! printf '%s' "$json_obj" | check-jsonschema --schemafile "$SCHEMA_PATH" --stdin-file stdin - >/dev/null; then
-  echo "Validation failed." >&2
+# --- Schema-Validierung -------------------------------------------------------
+# Wir nutzen ajv-cli statt check-jsonschema, da ajv stdin zuverlässig unterstützt.
+# Dadurch vermeiden wir Token-Fehler und erreichen Draft2020-Kompatibilität.
+tmp_json="$(mktemp /tmp/aussen_event.XXXX.json)"
+printf '%s' "$json_obj" > "$tmp_json"
+
+# Schema validieren (still)
+if ! npx -y ajv-cli@5.0.0 validate -s "$SCHEMA_PATH" -d "$tmp_json" --spec=draft2020 --strict=false >/dev/null 2>&1; then
+  echo "Validation failed for JSON against $SCHEMA_PATH" >&2
+  echo "----- JSON DUMP BEGIN -----" >&2
+  cat "$tmp_json" >&2
+  echo "----- JSON DUMP END -----" >&2
+  rm -f "$tmp_json"
   exit 1
 fi
+
+rm -f "$tmp_json"
 
 # --- Append ------------------------------------------------------------------
 
