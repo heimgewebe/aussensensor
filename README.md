@@ -86,6 +86,17 @@ tail -n1 export/feed.jsonl | jq .
 - Das Append-Skript setzt `ts` automatisch, serialisiert fehlende Tags als leeres Array und schreibt pro Ereignis eine NDJSON-Zeile.
 - Fehlerhafte Zeilen können mit `jq` korrigiert und erneut validiert werden.
 
+## Test-Fixtures & CI-Validierung
+Für kontraktnahe Beispiele kannst du unter `tests/fixtures/aussen/*.jsonl` einzelne Ereignisse ablegen.
+Ein dedizierter GitHub-Workflow validiert jede Datei einzeln gegen das Contract-Schema:
+
+- Workflow: `.github/workflows/validate-aussen-fixtures.yml`
+- Trigger: Änderungen unter `tests/fixtures/aussen/**` oder manueller Start
+- Schema: `contracts/aussen.event.schema.json` (per Raw-URL aus dem metarepo gespiegelt)
+
+Beispiel (lokal):
+`npx -y ajv-cli@5 validate --spec=draft2020 --strict=false --validate-formats=false -s contracts/aussen.event.schema.json -d tests/fixtures/aussen/deinfall.jsonl`
+
 ## Betrieb & Monitoring
 - **Logging:** Beide Skripte loggen in STDOUT/STDERR; für automatisierten Betrieb empfiehlt sich eine Umleitung nach `logs/` (z. B. via Cronjob).
 - **Überwachung:**
