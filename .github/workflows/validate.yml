@@ -1,7 +1,13 @@
-name: contracts-validate
-permissions:
-  contents: read
-on: [push, pull_request]
+name: validate (aussensensor)
+on: [push, pull_request, workflow_dispatch]
 jobs:
-  validate:
-    uses: heimgewebe/metarepo/.github/workflows/contracts-validate.yml@contracts-v1
+  v:
+    uses: heimgewebe/metarepo/.github/workflows/reusable-validate-jsonl.yml@contracts-v1
+    with:
+      # Eine Datei validieren:
+      jsonl_path: export/feed.jsonl
+      # Schema aus dem zentralen Tag:
+      schema_url: https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/aussen.event.schema.json
+      # Lint-Parametrisierung:
+      strict: false
+      validate_formats: true
