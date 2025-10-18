@@ -1,0 +1,64 @@
+name: validate (aussen fixtures)
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    paths:
+      - 'tests/fixtures/aussen/**'
+      - '.github/workflows/validate-aussen-fixtures.yml'
+  pull_request:
+    paths:
+      - 'tests/fixtures/aussen/**'
+      - '.github/workflows/validate-aussen-fixtures.yml'
+  workflow_dispatch:
+
+jobs:
+  discover:
+    name: Discover fixture files
+    runs-on: ubuntu-latest
+    outputs:
+      files: ${{ steps.collect.outputs.files }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: collect
+        shell: bash
+        run: |
+          shopt -s nullglob
+          arr=(tests/fixtures/aussen/*.jsonl)
+          if [ ${#arr[@]} -eq 0 ]; then
+            echo "files=[]" >> "$GITHUB_OUTPUT"
+            echo "No fixtures found."
+            exit 0
+          fi
+          printf 'files=[' >> "$GITHUB_OUTPUT"
+          first=1
+          for f in "${arr[@]}"; do
+            if [ $first -eq 1 ]; then first=0; else printf ',' >> "$GITHUB_OUTPUT"; fi
+            printf '%s' "\"$f\"" >> "$GITHUB_OUTPUT"
+          done
+          printf ']\n' >> "$GITHUB_OUTPUT"
+          echo "Discovered ${#arr[@]} fixture file(s)."
+
+  validate:
+    name: Validate ${{ matrix.file }}
+    needs: discover
+    if: ${{ fromJSON(needs.discover.outputs.files) != null && length(fromJSON(needs.discover.outputs.files)) > 0 }}
+    uses: heimgewebe/metarepo/.github/workflows/reusable-validate-jsonl.yml@contracts-v1
+    strategy:
+      fail-fast: false
+      matrix:
+        file: ${{ fromJSON(needs.discover.outputs.files) }}
+    with:
+      # Reusable erwartet ggf. einen einzelnen Pfad:
+      jsonl_path: ${{ matrix.file }}
+      # Falls die Reusable zusätzlich strict/validate_formats unterstützt, kann man sie dort aktivieren;
+      # werte ignoriert die Reusable einfach.
+      schema_url: https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/aussen.event.schema.json
+      strict: false
+      validate_formats: true
