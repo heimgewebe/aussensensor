@@ -82,8 +82,8 @@ case "$type" in
 esac
 
 if [[ -n "${summary:-}" ]]; then
-  # Zeichen zählen ohne nachfolgende Whitespaces von wc
-  summary_len="$(printf '%s' "$summary" | wc -m | tr -d '[:space:]')"
+  # Zeichen zählen, ohne Leerzeichen aus dem Inhalt zu entfernen
+  summary_len="$(printf '%s' "$summary" | wc -m | xargs)"
   if (( summary_len > 500 )); then
     echo "Fehler: summary darf höchstens 500 Zeichen umfassen (aktuell $summary_len)." >&2
     exit 1
