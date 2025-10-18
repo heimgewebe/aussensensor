@@ -12,8 +12,12 @@ aussensensor kuratiert externe Informationsquellen (Newsfeeds, Wetter, Lagebilde
 | --- | --- |
 | `scripts/append-feed.sh` | Fügt dem Feed ein neues Ereignis im JSONL-Format hinzu und erzwingt Contract-Konformität. |
 | `scripts/push_leitstand.sh` | Überträgt den kompletten Feed an die Leitstand-Ingest-API oder führt einen Dry-Run aus. |
+| `scripts/push_heimlern.sh` | Stößt den Push des Feeds an die Heimlern-Ingest-API an. |
 | `contracts/aussen.event.schema.json` | JSON-Schema des Ereignisformats (Contract). |
 | `export/feed.jsonl` | Sammeldatei aller kuratierten Ereignisse. |
+
+> Hinweis: `export/feed.jsonl` enthält initial **eine** minimale Beispielzeile,
+> damit die CI-Validierung sofort grün läuft. Ersetze/erweitere die Datei bei echter Nutzung.
 
 ## Voraussetzungen
 - POSIX-kompatible Shell (getestet mit `bash`)
@@ -25,6 +29,7 @@ aussensensor kuratiert externe Informationsquellen (Newsfeeds, Wetter, Lagebilde
 1. Repository klonen und in das Projektverzeichnis wechseln.
 2. Environment-Variablen setzen:
    - `LEITSTAND_INGEST_URL`: Basis-URL der Leitstand-Ingest-API (z. B. `https://leitstand.example/ingest/aussen`).
+   - `HEIMLERN_INGEST_URL`: Endpoint der Heimlern-Ingest-API (z. B. `http://localhost:8787/ingest/aussen`).
    - Optional: `LEITSTAND_TOKEN` für einen statischen Token (Header `x-auth`).
 3. Sicherstellen, dass `jq`, `curl` sowie (für Tests) `node`/`npx` installiert sind (`sudo apt install jq curl nodejs npm`).
 4. (Für GitHub Actions) Repository-Secrets `LEITSTAND_INGEST_URL` und `LEITSTAND_TOKEN` setzen, damit der Workflow `Push feed to Leitstand` funktioniert.
@@ -64,7 +69,9 @@ export LEITSTAND_INGEST_URL="https://leitstand.example/ingest/aussen"
   ```
 
 - Beim Append erzwingt das Skript Pflichtfelder, erlaubte Typen und die Summary-Länge laut Contract. Alle Events enthalten die Contract-Felder `ts`, `type`, `source`, `title`, `summary`, `url` und `tags`.
-- GitHub Actions Workflow: `Push feed to Leitstand` validiert jede Zeile mit AJV (mittels temporärer Kopie der Datei) und stößt manuell einen Push (optional als Dry-Run) an.
+- GitHub Actions Workflows:
+  - `Push feed to Leitstand` validiert jede Zeile mit AJV (mittels temporärer Kopie der Datei) und stößt manuell einen Push (optional als Dry-Run) an.
+  - `validate (aussensensor)` prüft jede Feed-Zeile automatisiert gegen das Contract-Schema (inklusive Format-Checks) bei Pushes, Pull Requests und manuellen Runs.
 
 ### Schneller Selbsttest
 ```bash
