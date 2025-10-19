@@ -139,22 +139,13 @@ json_obj="$(
 )"
 
 # --- Schema-Validierung -------------------------------------------------------
-# Wir nutzen ajv-cli statt check-jsonschema, da ajv stdin zuverlässig unterstützt.
-# Dadurch vermeiden wir Token-Fehler und erreichen Draft2020-Kompatibilität.
-tmp_json="$(mktemp /tmp/aussen_event.XXXX.json)"
-printf '%s' "$json_obj" > "$tmp_json"
-
-# Schema validieren (still)
-if ! npx -y ajv-cli@5.0.0 validate -s "$SCHEMA_PATH" -d "$tmp_json" --spec=draft2020 --strict=false >/dev/null 2>&1; then
-  echo "Validation failed for JSON against $SCHEMA_PATH" >&2
-  echo "----- JSON DUMP BEGIN -----" >&2
-  cat "$tmp_json" >&2
-  echo "----- JSON DUMP END -----" >&2
-  rm -f "$tmp_json"
+# Das generierte JSON wird zur Validierung an das zentrale Skript weitergeleitet.
+if ! printf '%s\n' "$json_obj" | "$SCRIPT_DIR/validate.sh"; then
+  echo "Fehler: Das generierte Ereignis ist nicht valide." >&2
+  echo "JSON-Objekt:" >&2
+  echo "$json_obj" >&2
   exit 1
 fi
-
-rm -f "$tmp_json"
 
 # --- Append ------------------------------------------------------------------
 
