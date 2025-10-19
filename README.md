@@ -11,6 +11,7 @@ aussensensor kuratiert externe Informationsquellen (Newsfeeds, Wetter, Lagebilde
 | Komponente | Beschreibung |
 | --- | --- |
 | `scripts/append-feed.sh` | Fügt dem Feed ein neues Ereignis im JSONL-Format hinzu und erzwingt Contract-Konformität. |
+| `scripts/validate.sh` | Validiert eine JSONL-Datei gegen das Schema. |
 | `scripts/push_leitstand.sh` | Überträgt den kompletten Feed an die Leitstand-Ingest-API oder führt einen Dry-Run aus. |
 | `scripts/push_heimlern.sh` | Stößt den Push des Feeds an die Heimlern-Ingest-API an. |
 | `contracts/aussen.event.schema.json` | JSON-Schema des Ereignisformats (Contract). |
@@ -62,7 +63,7 @@ export LEITSTAND_INGEST_URL="https://leitstand.example/ingest/aussen"
 - Lokale Schema-Validierung (AJV, Draft 2020-12):
 
   ```bash
-  ./scripts/validate.sh export/feed.jsonl contracts/aussen.event.schema.json
+  ./scripts/validate.sh export/feed.jsonl
   ```
 
 - Beim Append erzwingt das Skript Pflichtfelder, erlaubte Typen und die Summary-Länge laut Contract. Alle Events enthalten die Contract-Felder `ts`, `type`, `source`, `title`, `summary`, `url` und `tags`.
@@ -72,6 +73,8 @@ export LEITSTAND_INGEST_URL="https://leitstand.example/ingest/aussen"
 
 ### Schneller Selbsttest
 ```bash
+# Optional: Feed leeren, um nur den Test-Eintrag zu prüfen
+# > export/feed.jsonl
 ./scripts/append-feed.sh heise news "Testtitel" "Kurztext" "https://example.org" urgent topic:klima Berlin
 ./scripts/validate.sh export/feed.jsonl
 tail -n1 export/feed.jsonl | jq .

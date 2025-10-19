@@ -13,7 +13,6 @@ declare -a pos_tags=()
 opt_tags=""
 tags_mode=""
 OUTPUT_FILE=""
-tmp_json_file="" # Global, damit der trap es finden kann
 
 # Konstanten
 SCRIPT_DIR=""
@@ -22,10 +21,6 @@ SCHEMA_PATH=""
 
 
 # --- Funktionen ------------------------------------------------------------
-cleanup() {
-  rm -f "$tmp_json_file"
-}
-trap cleanup EXIT HUP INT QUIT PIPE TERM
 
 print_usage() {
   cat <<'USAGE' >&2
@@ -162,17 +157,12 @@ build_json() {
 }
 
 validate_json_schema() {
-  need npx
   local json_obj="$1"
 
-  printf '%s' "$json_obj" > "$tmp_json_file"
-
-  # Schema validieren (still)
-  if ! npx -y ajv-cli@5.0.0 validate -s "$SCHEMA_PATH" -d "$tmp_json_file" --spec=draft2020 --strict=false >/dev/null 2>&1; then
-    echo "Validation failed for JSON against $SCHEMA_PATH" >&2
-    echo "----- JSON DUMP BEGIN -----" >&2
-    cat "$tmp_json_file" >&2
-    echo "----- JSON DUMP END -----" >&2
+  if ! printf '%s\n' "$json_obj" | "$SCRIPT_DIR/validate.sh"; then
+    echo "Fehler: Das generierte Ereignis ist nicht valide." >&2
+    echo "JSON-Objekt:" >&2
+    echo "$json_obj" >&2
     exit 1
   fi
 }
@@ -189,8 +179,6 @@ main() {
   SCHEMA_PATH="$REPO_ROOT/contracts/aussen.event.schema.json"
   # Default output file, can be overwritten by -o flag
   OUTPUT_FILE="$REPO_ROOT/export/feed.jsonl"
-
-  tmp_json_file="$(mktemp /tmp/aussen_event.XXXX.json)"
 
   parse_args "$@"
   validate_args
