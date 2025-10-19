@@ -62,11 +62,7 @@ export LEITSTAND_INGEST_URL="https://leitstand.example/ingest/aussen"
 - Lokale Schema-Validierung (AJV, Draft 2020-12):
 
   ```bash
-  while IFS= read -r line; do
-    [ -z "${line// }" ] && continue
-    printf '%s\n' "$line" > /tmp/event.json
-    npx -y ajv-cli@5 validate --spec=draft2020 --strict=false --validate-formats=false -s contracts/aussen.event.schema.json -d /tmp/event.json
-  done < export/feed.jsonl
+  ./scripts/validate.sh export/feed.jsonl contracts/aussen.event.schema.json
   ```
 
 - Beim Append erzwingt das Skript Pflichtfelder, erlaubte Typen und die Summary-Länge laut Contract. Alle Events enthalten die Contract-Felder `ts`, `type`, `source`, `title`, `summary`, `url` und `tags`.
@@ -77,11 +73,7 @@ export LEITSTAND_INGEST_URL="https://leitstand.example/ingest/aussen"
 ### Schneller Selbsttest
 ```bash
 ./scripts/append-feed.sh heise news "Testtitel" "Kurztext" "https://example.org" urgent topic:klima Berlin
-while IFS= read -r line; do
-  [ -z "${line// }" ] && continue
-  printf '%s\n' "$line" > /tmp/event.json
-  npx -y ajv-cli@5 validate --spec=draft2020 --strict=false --validate-formats=false -s contracts/aussen.event.schema.json -d /tmp/event.json
-done < export/feed.jsonl
+./scripts/validate.sh export/feed.jsonl
 tail -n1 export/feed.jsonl | jq .
 ```
 - Demonstriert, dass freie Tags (z. B. `topic:klima`) korrekt verarbeitet werden.
