@@ -51,9 +51,10 @@ Bei Eingabefehlern bricht das Skript mit einem nicht-null Exit-Code ab. Bereits 
 ### Feed übertragen
 ```bash
 export LEITSTAND_INGEST_URL="https://leitstand.example/ingest/aussen"
-./scripts/push_leitstand.sh [--dry-run] [--file export/feed.jsonl] [--url "…"] [--token "$LEITSTAND_TOKEN"]
+./scripts/push_leitstand.sh [--dry-run] [--file export/feed.jsonl] [--url "…"] [--token "$LEITSTAND_TOKEN"] [--content-type application/jsonl]
 ```
-- Standardmäßig werden Ereignisse per `POST` im JSONL-Format (`Content-Type: application/jsonl`) übertragen.
+- Standardmäßig werden Ereignisse per `POST` im JSON Lines/NDJSON-Format übertragen mit `Content-Type: application/x-ndjson` (de-facto Standard und weit verbreitet).
+- Bei Bedarf kann der Header überschrieben werden, entweder über `--content-type …` oder via Environment `CONTENT_TYPE=…`.
 - Mit `--dry-run` wird nur ausgegeben, welche Daten gesendet würden; es erfolgt kein HTTP-Request.
 - Das Skript liest URL und Token aus der Umgebung, akzeptiert aber auch explizite Argumente. Die Datei wird nicht verändert; `curl` erhält sie via `--data-binary`.
 
@@ -92,6 +93,7 @@ tail -n1 export/feed.jsonl | jq .
 - Tags sind freie Strings (z. B. `rss:demo`, `topic:klima`). Sie werden als JSON-Array geschrieben.
 - Das Append-Skript setzt `ts` automatisch, serialisiert fehlende Tags als leeres Array und schreibt pro Ereignis eine NDJSON-Zeile.
 - Fehlerhafte Zeilen können mit `jq` korrigiert und erneut validiert werden.
+- Für NDJSON/JSONL empfiehlt sich `application/x-ndjson`. Einige Systeme akzeptieren auch `application/jsonl`; bei Bedarf kann der Push per Flag oder `CONTENT_TYPE` darauf umgestellt werden.
 
 ## Test-Fixtures & CI-Validierung
 Für kontraktnahe Beispiele kannst du unter `tests/fixtures/aussen/*.jsonl` einzelne Ereignisse ablegen.

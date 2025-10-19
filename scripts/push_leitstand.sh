@@ -6,11 +6,12 @@ print_usage() {
 Usage: scripts/push_leitstand.sh [options]
 
 Options:
-  -f, --file PATH      Pfad zur JSONL-Datei (Standard: export/feed.jsonl)
-      --url URL        Ziel-Endpoint (überschreibt $LEITSTAND_INGEST_URL)
-      --token TOKEN    Authentifizierungs-Token (überschreibt $LEITSTAND_TOKEN)
-      --dry-run        Keine Übertragung, sondern nur Anzeige der Aktion
-  -h, --help           Diese Hilfe anzeigen
+  -f, --file PATH        Pfad zur JSONL-Datei (Standard: export/feed.jsonl)
+      --url URL          Ziel-Endpoint (überschreibt $LEITSTAND_INGEST_URL)
+      --token TOKEN      Authentifizierungs-Token (überschreibt $LEITSTAND_TOKEN)
+      --content-type CT  Content-Type Header (Standard: $CONTENT_TYPE oder application/x-ndjson)
+      --dry-run          Keine Übertragung, sondern nur Anzeige der Aktion
+  -h, --help             Diese Hilfe anzeigen
 USAGE
 }
 
@@ -19,6 +20,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 FILE_PATH="$REPO_ROOT/export/feed.jsonl"
 INGEST_URL="${LEITSTAND_INGEST_URL:-}"
 AUTH_TOKEN="${LEITSTAND_TOKEN:-}"
+CONTENT_TYPE="${CONTENT_TYPE:-application/x-ndjson}"
 DRY_RUN=false
 
 while [[ $# -gt 0 ]]; do
@@ -36,6 +38,11 @@ while [[ $# -gt 0 ]]; do
     --token)
       [[ $# -ge 2 ]] || { echo "Fehlender Parameter für --token" >&2; exit 1; }
       AUTH_TOKEN="$2"
+      shift 2
+      ;;
+    --content-type)
+      [[ $# -ge 2 ]] || { echo "Fehlender Parameter für --content-type" >&2; exit 1; }
+      CONTENT_TYPE="$2"
       shift 2
       ;;
     --dry-run)
@@ -78,6 +85,11 @@ if [[ ! -s "$FILE_PATH" ]]; then
   echo "Warnung: Datei '$FILE_PATH' ist leer." >&2
 fi
 
+if [[ -z "${CONTENT_TYPE//[[:space:]]/}" ]]; then
+  echo "Fehler: Content-Type ist leer." >&2
+  exit 1
+fi
+
 if [[ "$DRY_RUN" == true ]]; then
   echo "[DRY-RUN] Würde $event_count Ereignis(se) an '$INGEST_URL' übertragen." >&2
   echo "[DRY-RUN] Datei: $FILE_PATH" >&2
@@ -86,6 +98,7 @@ if [[ "$DRY_RUN" == true ]]; then
   else
     echo "[DRY-RUN] Token: nicht gesetzt." >&2
   fi
+  echo "[DRY-RUN] Content-Type: $CONTENT_TYPE" >&2
   if [[ -f "$FILE_PATH" ]]; then
     head -n5 "$FILE_PATH" >&2 || true
   fi
@@ -97,7 +110,7 @@ curl_args=(
   --silent
   --show-error
   --request POST
-  --header "Content-Type: application/x-ndjson"
+  --header "Content-Type: $CONTENT_TYPE"
   --data-binary "@$FILE_PATH"
 )
 
