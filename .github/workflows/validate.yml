@@ -1,5 +1,7 @@
 name: validate (aussensensor)
 on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
 jobs:
   v:
     uses: heimgewebe/metarepo/.github/workflows/reusable-validate-jsonl.yml@contracts-v1
