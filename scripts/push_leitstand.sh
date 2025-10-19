@@ -97,7 +97,7 @@ curl_args=(
   --silent
   --show-error
   --request POST
-  --header "Content-Type: application/x-ndjson"
+  --header "Content-Type: application/jsonl"
   --data-binary "@$FILE_PATH"
 )
 
