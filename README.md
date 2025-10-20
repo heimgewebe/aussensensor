@@ -1,5 +1,8 @@
 # aussensensor
 
+[![validate (aussensensor feed)](https://github.com/heimgewebe/aussensensor/actions/workflows/validate-feed.yml/badge.svg)](https://github.com/heimgewebe/aussensensor/actions/workflows/validate-feed.yml)
+[![validate (aussen fixtures)](https://github.com/heimgewebe/aussensensor/actions/workflows/validate-aussen-fixtures.yml/badge.svg)](https://github.com/heimgewebe/aussensensor/actions/workflows/validate-aussen-fixtures.yml)
+
 aussensensor kuratiert externe Informationsquellen (Newsfeeds, Wetter, Lagebilder) und stellt sie in einem konsistenten Ereignisformat für den Leitstand zur Verfügung. Die aktuelle Implementierung besteht aus einfachen Bash-Hilfsskripten, die den Feed in `export/feed.jsonl` pflegen und manuell an den Leitstand übertragen. Langfristig ist eine Migration zu einem dauerhaften Daemon geplant (siehe [docs/adr](docs/adr/README.md)).
 
 ## Systemkontext und Zielsetzung
@@ -35,7 +38,8 @@ aussensensor kuratiert externe Informationsquellen (Newsfeeds, Wetter, Lagebilde
 3. Sicherstellen, dass `jq`, `curl` sowie (für Tests) `node`/`npx` installiert sind (`sudo apt install jq curl nodejs npm`).
 4. (Für GitHub Actions) Repository-Secrets `LEITSTAND_INGEST_URL` und `LEITSTAND_TOKEN` setzen, damit der Workflow `Push feed to Leitstand` funktioniert.
 
-## Nutzung
+## Nutzung (mit Runbook & CI)
+Siehe [docs/runbook.md](docs/runbook.md). CI validiert `export/feed.jsonl` gegen den Contract.
 ### Ereignis hinzufügen
 ```bash
 ./scripts/append-feed.sh -t news -s rss:demo -T "Test" -S "Kurz" -u "https://example.org" -g "tag1,tag2"
@@ -70,6 +74,7 @@ export LEITSTAND_INGEST_URL="https://leitstand.example/ingest/aussen"
 - GitHub Actions Workflows:
   - `Push feed to Leitstand` validiert jede Zeile mit AJV (mittels temporärer Kopie der Datei) und stößt manuell einen Push (optional als Dry-Run) an.
   - `validate (aussensensor)` prüft jede Feed-Zeile automatisiert gegen das Contract-Schema (inklusive Format-Checks) bei Pushes, Pull Requests und manuellen Runs.
+  - `validate (aussen fixtures)` deckt Edge-Cases anhand der Beispiel-JSONL-Dateien unter `tests/fixtures/aussen/**` ab.
 
 ### Schneller Selbsttest
 ```bash

@@ -1,0 +1,31 @@
+name: validate (aussensensor feed)
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    paths:
+      - export/feed.jsonl
+      - .github/workflows/validate-feed.yml
+      - contracts/**
+      - scripts/validate.sh
+  pull_request:
+    paths:
+      - export/feed.jsonl
+      - .github/workflows/validate-feed.yml
+      - contracts/**
+      - scripts/validate.sh
+  workflow_dispatch:
+jobs:
+  validate:
+    uses: heimgewebe/metarepo/.github/workflows/reusable-validate-jsonl.yml@contracts-v1
+    with:
+      jsonl_path: export/feed.jsonl
+      schema_url: https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/aussen.event.schema.json
+      strict: false
+      validate_formats: true
