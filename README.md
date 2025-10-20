@@ -9,6 +9,7 @@ aussensensor kuratiert externe Informationsquellen (Newsfeeds, Wetter, Lagebilde
 - **Zielgruppe:** Operator:innen und Analyst:innen, die ein konsolidiertes Lagebild benötigen.
 - **Einordnung:** aussensensor dient als vorgelagerter Kurationspunkt für externe Quellen und beliefert den Leitstand über die `/ingest/aussen`-Schnittstelle.
 - **Datenfluss:** Quellen → Kurationsskripte → `export/feed.jsonl` → Push an Leitstand → Speicherung/Weiterverarbeitung im Leitstand.
+Architekturentscheidungen, die zu diesem Design führten, sind in den [ADRs](docs/adr/README.md) dokumentiert.
 
 ## Komponentenüberblick
 | Komponente | Beschreibung |
@@ -80,7 +81,7 @@ export LEITSTAND_INGEST_URL="https://leitstand.example/ingest/aussen"
 ```bash
 # Optional: Feed leeren, um nur den Test-Eintrag zu prüfen
 # > export/feed.jsonl
-./scripts/append-feed.sh heise news "Testtitel" "Kurztext" "https://example.org" urgent topic:klima Berlin
+./scripts/append-feed.sh -s heise -t news -T "Testtitel" -S "Kurztext" -u "https://example.org" -g "urgent,topic:klima,Berlin"
 ./scripts/validate.sh export/feed.jsonl
 tail -n1 export/feed.jsonl | jq .
 ```
