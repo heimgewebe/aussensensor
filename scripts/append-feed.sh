@@ -110,8 +110,6 @@ validate_args() {
 }
 
 build_tags_json() {
-  need jq
-
   if [[ "${tags_mode:-}" == "positional" ]]; then
     if (( ${#pos_tags[@]} > 0 )); then
       printf '%s\n' "${pos_tags[@]}" | jq -R 'select(length > 0)' | jq -s .
@@ -179,6 +177,11 @@ main() {
   SCHEMA_PATH="$REPO_ROOT/contracts/aussen.event.schema.json"
   # Default output file, can be overwritten by -o flag
   OUTPUT_FILE="$REPO_ROOT/export/feed.jsonl"
+
+  need date
+  need jq
+  need wc
+  need xargs
 
   parse_args "$@"
   validate_args
