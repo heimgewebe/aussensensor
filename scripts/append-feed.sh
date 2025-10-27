@@ -18,6 +18,17 @@ OUTPUT_FILE=""
 SCRIPT_DIR=""
 REPO_ROOT=""
 SCHEMA_PATH=""
+LOCK_FILE=""     # wird aus OUTPUT_FILE abgeleitet
+
+have() { command -v "$1" >/dev/null 2>&1; }
+need() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "Fehlt: $1" >&2
+    exit 1
+  fi
+}
+uuid() { if have uuidgen; then uuidgen; else echo "$RANDOM-$RANDOM-$$-$(date +%s%N)"; fi; }
+safe_mktemp() { mktemp "${TMPDIR:-/tmp}/aussen_append.$(uuid).XXXXXX"; }
 
 
 # --- Funktionen ------------------------------------------------------------
@@ -44,10 +55,6 @@ Usage:
     -g tags    Kommagetrennte Tags (z. B. "rss:demo, klima")
     -h         Hilfe anzeigen
 USAGE
-}
-
-need() {
-  command -v "$1" >/dev/null 2>&1 || { echo "Fehlt: $1" >&2; exit 1; }
 }
 
 parse_args() {
@@ -156,8 +163,14 @@ build_json() {
 
 validate_json_schema() {
   local json_obj="$1"
+  local validator="$SCRIPT_DIR/validate.sh"
 
-  if ! printf '%s\n' "$json_obj" | "$SCRIPT_DIR/validate.sh"; then
+  if [[ ! -x "$validator" ]]; then
+    echo "Validation script not found: $validator" >&2
+    exit 1
+  fi
+
+  if ! printf '%s\n' "$json_obj" | "$validator" >/dev/null; then
     echo "Fehler: Das generierte Ereignis ist nicht valide." >&2
     echo "JSON-Objekt:" >&2
     echo "$json_obj" >&2
@@ -168,7 +181,51 @@ validate_json_schema() {
 append_to_feed() {
   local json_obj="$1"
   mkdir -p "$(dirname "$OUTPUT_FILE")"
-  printf '%s\n' "$json_obj" >> "$OUTPUT_FILE"
+  LOCK_FILE="${OUTPUT_FILE}.lock"
+
+  # Schreibe erst in eine temporäre Datei (immer eine komplette Zeile, mit \n)
+  local tmp_line=""
+  local tmp_feed=""
+  cleanup() {
+    if [[ -n "$tmp_line" && -f "$tmp_line" ]]; then
+      rm -f -- "$tmp_line"
+    fi
+    if [[ -n "$tmp_feed" && -f "$tmp_feed" ]]; then
+      rm -f -- "$tmp_feed"
+    fi
+  }
+  trap cleanup EXIT INT TERM
+
+  tmp_line="$(safe_mktemp)"
+  printf '%s\n' "$json_obj" > "$tmp_line"
+
+  if have flock; then
+    # Lock-basiertes, konkurrenzsicheres Anhängen
+    exec 9>"$LOCK_FILE"
+    local lock_timeout="${APPEND_LOCK_TIMEOUT:-10}"
+    echo "append-feed: Verwende flock mit Timeout ${lock_timeout}s" >&2
+    if flock -w "$lock_timeout" 9; then
+      cat "$tmp_line" >> "$OUTPUT_FILE"
+      flock -u 9
+    else
+      echo "Lock timeout auf $LOCK_FILE" >&2
+      cleanup
+      exit 1
+    fi
+    exec 9>&-
+  else
+    # Fallback ohne flock: anhängen via atomarem Replace
+    # 1) Bestehenden Feed in temp kopieren (falls vorhanden)
+    echo "append-feed: flock nicht verfügbar, verwende atomaren Fallback" >&2
+    tmp_feed="$(safe_mktemp)"
+    if [[ -f "$OUTPUT_FILE" ]]; then
+      cp -f -- "$OUTPUT_FILE" "$tmp_feed"
+    fi
+    cat "$tmp_line" >> "$tmp_feed"
+    mv -f "$tmp_feed" "$OUTPUT_FILE"
+  fi
+  cleanup
+  trap - EXIT INT TERM
 }
 
 main() {
