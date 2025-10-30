@@ -11,7 +11,7 @@ summary=""
 url=""
 declare -a pos_tags=()
 opt_tags=""
-tags_mode=""
+# tags_mode entfällt – wir entscheiden allein anhand pos_tags/opt_tags
 OUTPUT_FILE=""
 
 # Konstanten
@@ -70,7 +70,6 @@ parse_args() {
     # Positionsmodus
     source="$1"; type="$2"; title="$3"; summary="$4"; url="$5"; shift 5
     mapfile -t pos_tags < <(printf '%s\n' "$@")
-    tags_mode="positional"
   else
     # Optionsmodus (getopts)
     # OPTIND zurücksetzen, falls die Funktion mehrfach aufgerufen wird
@@ -89,7 +88,6 @@ parse_args() {
         \?) echo "Unbekannte Option: -$OPTARG" >&2; print_usage; exit 1 ;;
       esac
     done
-    tags_mode="getopts"
   fi
 }
 
@@ -105,35 +103,35 @@ validate_args() {
     *) echo "Fehler: type muss einer von {news|sensor|project|alert} sein." >&2; exit 1 ;;
   esac
 
-  if [[ -n "${summary:-}" ]]; then
-    # Zeichen zählen, ohne Leerzeichen aus dem Inhalt zu entfernen
-    local summary_len
-    summary_len="$(printf '%s' "$summary" | wc -m | xargs)"
-    if (( summary_len > 500 )); then
-      echo "Fehler: summary darf höchstens 500 Zeichen umfassen (aktuell $summary_len)." >&2
-      exit 1
-    fi
+  # Summary-Länge (max 500) – Bash zählt UTF-8-Zeichen korrekt bei passender Locale
+  local summary_len
+  summary="${summary:-""}"
+  summary_len=${#summary}
+  if (( summary_len > 500 )); then
+    echo "Fehler: summary darf höchstens 500 Zeichen umfassen (aktuell $summary_len)." >&2
+    exit 1
   fi
 }
 
 build_tags_json() {
-  if [[ "${tags_mode:-}" == "positional" ]]; then
-    if (( ${#pos_tags[@]} > 0 )); then
-      printf '%s\n' "${pos_tags[@]}" | jq -R 'select(length > 0)' | jq -s .
-    else
-      echo '[]'
-    fi
+  # Tags: bevorzugt opt_tags, sonst pos_tags; immer Liste
+  local -a tags_raw=()
+  if [[ -n "${opt_tags:-}" ]]; then
+    # Kommagetrennte Liste in Array wandeln
+    IFS=',' read -r -a tags_raw <<< "$opt_tags"
   else
-    # getopts: Kommagetrennt -> Array
-    jq -cn --arg tags "${opt_tags:-}" '
-      if $tags == "" then []
-      else
-        $tags
-        | split(",")
-        | map(. | gsub("^\\s+|\\s+$"; ""))
-        | map(select(. != ""))
-      end'
+    tags_raw=("${pos_tags[@]}")
   fi
+
+  if (( ${#tags_raw[@]} == 0 )); then
+    echo '[]'
+    return
+  fi
+
+  printf '%s\n' "${tags_raw[@]}" | jq -R 'select(length > 0)' | jq -s '
+    map(gsub("^\\s+|\\s+$"; ""))
+    | map(select(length > 0))
+    | reduce .[] as $tag ([]; if index($tag) then . else . + [$tag] end)'
 }
 
 build_json() {
