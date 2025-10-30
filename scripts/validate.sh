@@ -80,7 +80,7 @@ fi
 
 validate_line() {
   local line="$1"
-  local context="$2"
+  local context="${2:-stdin}"
 
   # Leere Zeilen ignorieren
   [[ -z "${line// }" ]] && return 0
@@ -88,6 +88,7 @@ validate_line() {
   # Pro Zeile ein isoliertes Tempfile erstellen, um Cross-Process-Sharing zu vermeiden
   local tmp
   tmp="$(mktemp "${TMPDIR:-/tmp}/aussen_event.validate.XXXXXX.json")"
+  trap '[[ -f "$tmp" ]] && rm -f "$tmp"' EXIT INT TERM
   printf '%s\n' "$line" > "$tmp"
 
   if ! npx -y ajv-cli@5.0.0 validate \
@@ -105,10 +106,12 @@ validate_line() {
       -s "$SCHEMA_FILE" \
       -d "$tmp"
     rm -f "$tmp"
+    trap - EXIT INT TERM
     exit 1
   fi
 
   rm -f "$tmp"
+  trap - EXIT INT TERM
 }
 
 if [[ $# -gt 0 && -f "$1" ]]; then
