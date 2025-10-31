@@ -98,6 +98,16 @@ validate_args() {
     exit 1
   fi
 
+  if [[ -z "${source//[[:space:]]/}" || -z "${title//[[:space:]]/}" ]]; then
+    echo "Fehler: source/title dürfen nicht nur aus Leerzeichen bestehen." >&2
+    exit 1
+  fi
+
+  if [[ "$source" == "-" || "$title" == "-" ]]; then
+    echo "Fehler: '-' ist kein gültiger Wert für source/title." >&2
+    exit 1
+  fi
+
   case "$type" in
     news|sensor|project|alert) ;;
     *) echo "Fehler: type muss einer von {news|sensor|project|alert} sein." >&2; exit 1 ;;
