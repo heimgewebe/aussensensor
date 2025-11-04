@@ -79,6 +79,12 @@ parse_args() {
   url=""
   opt_tags=""
 
+  # Speziell die Option -o vorab verarbeiten, um Testbarkeit zu erleichtern
+  if [[ "${1:-}" == "-o" ]]; then
+    OUTPUT_FILE="$2"
+    shift 2
+  fi
+
   if [[ "${1:-}" != "-"* && "$#" -ge 5 ]]; then
     # Positionsmodus
     source="$1"; type="$2"; title="$3"; summary="$4"; url="$5"; shift 5

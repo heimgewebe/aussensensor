@@ -88,6 +88,13 @@ tail -n1 export/feed.jsonl | jq .
 - Demonstriert, dass freie Tags (z. B. `topic:klima`) korrekt verarbeitet werden.
 - Validiert den Feed direkt im Anschluss (siehe Schleife oben) und zeigt die zuletzt geschriebene Zeile einschließlich leerer Standardfelder.
 
+### Testing
+This project uses `bats-core` for automated testing. The tests are located in the `tests/` directory. To run the test suite, execute the following command:
+
+```bash
+./tests/run.sh
+```
+
 ## Ereignisschema & Datenqualität
 - Pflichtfelder laut Contract: `ts` (ISO-8601), `type` (`news|sensor|project|alert`), `source`, `title`. Darüber hinaus werden `summary`, `url` und `tags[]` immer geschrieben (leere Strings bzw. leeres Array), damit Downstream-Services fixe Spalten haben.
 - **Keine** zusätzlichen Felder erlaubt (`additionalProperties: false`).
