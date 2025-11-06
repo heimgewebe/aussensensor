@@ -43,7 +43,6 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-
 # --- Funktionen ------------------------------------------------------------
 
 print_usage() {
@@ -87,7 +86,12 @@ parse_args() {
 
   if [[ "${1:-}" != "-"* && "$#" -ge 5 ]]; then
     # Positionsmodus
-    source="$1"; type="$2"; title="$3"; summary="$4"; url="$5"; shift 5
+    source="$1"
+    type="$2"
+    title="$3"
+    summary="$4"
+    url="$5"
+    shift 5
     mapfile -t pos_tags < <(printf '%s\n' "$@")
   else
     # Optionsmodus (getopts)
@@ -95,16 +99,27 @@ parse_args() {
     OPTIND=1
     while getopts ":ho:t:s:T:S:u:g:" opt; do
       case "$opt" in
-        h) print_usage; exit 0 ;;
-        o) OUTPUT_FILE="$OPTARG" ;;
-        t) type="$OPTARG" ;;
-        s) source="$OPTARG" ;;
-        T) title="$OPTARG" ;;
-        S) summary="$OPTARG" ;;
-        u) url="$OPTARG" ;;
-        g) opt_tags="$OPTARG" ;;
-        :) echo "Option -$OPTARG benötigt ein Argument." >&2; print_usage; exit 1 ;;
-        \?) echo "Unbekannte Option: -$OPTARG" >&2; print_usage; exit 1 ;;
+      h)
+        print_usage
+        exit 0
+        ;;
+      o) OUTPUT_FILE="$OPTARG" ;;
+      t) type="$OPTARG" ;;
+      s) source="$OPTARG" ;;
+      T) title="$OPTARG" ;;
+      S) summary="$OPTARG" ;;
+      u) url="$OPTARG" ;;
+      g) opt_tags="$OPTARG" ;;
+      :)
+        echo "Option -$OPTARG benötigt ein Argument." >&2
+        print_usage
+        exit 1
+        ;;
+      \?)
+        echo "Unbekannte Option: -$OPTARG" >&2
+        print_usage
+        exit 1
+        ;;
       esac
     done
   fi
@@ -128,15 +143,18 @@ validate_args() {
   fi
 
   case "$type" in
-    news|sensor|project|alert) ;;
-    *) echo "Fehler: type muss einer von {news|sensor|project|alert} sein." >&2; exit 1 ;;
+  news | sensor | project | alert) ;;
+  *)
+    echo "Fehler: type muss einer von {news|sensor|project|alert} sein." >&2
+    exit 1
+    ;;
   esac
 
   # Summary-Länge (max 500) – Bash zählt UTF-8-Zeichen korrekt bei passender Locale
   local summary_len
   summary="${summary:-""}"
   summary_len=${#summary}
-  if (( summary_len > 500 )); then
+  if ((summary_len > 500)); then
     echo "Fehler: summary darf höchstens 500 Zeichen umfassen (aktuell $summary_len)." >&2
     exit 1
   fi
@@ -147,12 +165,12 @@ build_tags_json() {
   local -a tags_raw=()
   if [[ -n "${opt_tags:-}" ]]; then
     # Kommagetrennte Liste in Array wandeln
-    IFS=',' read -r -a tags_raw <<< "$opt_tags"
+    IFS=',' read -r -a tags_raw <<<"$opt_tags"
   else
     tags_raw=("${pos_tags[@]}")
   fi
 
-  if (( ${#tags_raw[@]} == 0 )); then
+  if ((${#tags_raw[@]} == 0)); then
     echo '[]'
     return
   fi
@@ -212,7 +230,7 @@ append_to_feed() {
 
   # Schreibe erst in eine temporäre Datei (immer eine komplette Zeile, mit \n)
   TMP_LINE_FILE="$(safe_mktemp)"
-  printf '%s\n' "$json_obj" > "$TMP_LINE_FILE"
+  printf '%s\n' "$json_obj" >"$TMP_LINE_FILE"
 
   if have flock; then
     # Lock-basiertes, konkurrenzsicheres Anhängen
@@ -220,7 +238,7 @@ append_to_feed() {
     local lock_timeout="${APPEND_LOCK_TIMEOUT:-10}"
     echo "append-feed: Verwende flock mit Timeout ${lock_timeout}s" >&2
     if flock -w "$lock_timeout" 9; then
-      cat "$TMP_LINE_FILE" >> "$OUTPUT_FILE"
+      cat "$TMP_LINE_FILE" >>"$OUTPUT_FILE"
       flock -u 9
     else
       echo "Lock timeout auf $LOCK_FILE" >&2
@@ -250,7 +268,7 @@ append_to_feed() {
     fi
 
     # Neue Zeile anhängen
-    cat "$TMP_LINE_FILE" >> "$TMP_FEED_FILE"
+    cat "$TMP_LINE_FILE" >>"$TMP_FEED_FILE"
 
     # 3) Atomar ersetzen (Temp behält jetzt die gewünschten Attribute)
     mv -f -- "$TMP_FEED_FILE" "$OUTPUT_FILE"
