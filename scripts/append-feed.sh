@@ -222,15 +222,28 @@ append_to_feed() {
     fi
     exec 9>&-
   else
-    # Fallback ohne flock: anhängen via atomarem Replace
-    # 1) Bestehenden Feed in temp kopieren (falls vorhanden)
-    echo "append-feed: flock nicht verfügbar, verwende atomaren Fallback" >&2
+    # Fallback ohne flock: "append" via atomarem Replace,
+    # dabei Rechte/Owner der Zieldatei beibehalten.
+    echo "append-feed: flock nicht verfügbar, nutze atomaren Fallback (mit Rechte-Erhalt)" >&2
     TMP_FEED_FILE="$(safe_mktemp)"
+
+    # Bestehenden Feed (falls vorhanden) in Temp übernehmen
     if [[ -f "$OUTPUT_FILE" ]]; then
+      # 1) Inhalt kopieren
       cp -f -- "$OUTPUT_FILE" "$TMP_FEED_FILE"
+      # 2) Temp-Datei auf Mode/Owner der bestehenden Datei setzen
+      mode="$(stat -c '%a' "$OUTPUT_FILE")"
+      owner="$(stat -c '%u' "$OUTPUT_FILE")"
+      group="$(stat -c '%g' "$OUTPUT_FILE")"
+      chmod "$mode" "$TMP_FEED_FILE"
+      chown "$owner:$group" "$TMP_FEED_FILE" 2>/dev/null || true
     fi
+
+    # Neue Zeile anhängen
     cat "$TMP_LINE_FILE" >> "$TMP_FEED_FILE"
-    mv -f "$TMP_FEED_FILE" "$OUTPUT_FILE"
+
+    # 3) Atomar ersetzen (Temp behält jetzt die gewünschten Attribute)
+    mv -f -- "$TMP_FEED_FILE" "$OUTPUT_FILE"
   fi
 }
 
