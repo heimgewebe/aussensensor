@@ -232,11 +232,15 @@ append_to_feed() {
       # 1) Inhalt kopieren
       cp -f -- "$OUTPUT_FILE" "$TMP_FEED_FILE"
       # 2) Temp-Datei auf Mode/Owner der bestehenden Datei setzen
-      mode="$(stat -c '%a' "$OUTPUT_FILE")"
-      owner="$(stat -c '%u' "$OUTPUT_FILE")"
-      group="$(stat -c '%g' "$OUTPUT_FILE")"
-      chmod "$mode" "$TMP_FEED_FILE"
-      chown "$owner:$group" "$TMP_FEED_FILE" 2>/dev/null || true
+      mode="$(stat -c '%a' "$OUTPUT_FILE" 2>/dev/null || echo "")"
+      owner="$(stat -c '%u' "$OUTPUT_FILE" 2>/dev/null || echo "")"
+      group="$(stat -c '%g' "$OUTPUT_FILE" 2>/dev/null || echo "")"
+      if [[ -n "$mode" && -n "$owner" && -n "$group" ]]; then
+        chmod "$mode" "$TMP_FEED_FILE"
+        chown "$owner:$group" "$TMP_FEED_FILE" 2>/dev/null || true
+      else
+        echo "Warnung: Konnte Modus/Besitzer/Gruppeninformationen von $OUTPUT_FILE nicht ermitteln, überspringe chmod/chown." >&2
+      fi
     fi
 
     # Neue Zeile anhängen
