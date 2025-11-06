@@ -6,14 +6,17 @@ set -euo pipefail
 #   scripts/jsonl-compact.sh export/feed.jsonl
 #
 file="${1:-}"
-[[ -n "$file" && -f "$file" ]] || { echo "usage: $0 <file.jsonl>" >&2; exit 2; }
+[[ -n "$file" && -f "$file" ]] || {
+  echo "usage: $0 <file.jsonl>" >&2
+  exit 2
+}
 
 tmp="$(mktemp "${file##*/}.XXXX")"
 trap 'rm -f "$tmp"' EXIT
 
 # Zeilenweise lesen, in kompaktes JSON (-c) konvertieren; invalide Zeilen brechen ab.
 while IFS= read -r line || [[ -n "$line" ]]; do
-  [[ -n "${line// }" ]] || continue
+  [[ -n "${line// /}" ]] || continue
   printf '%s\n' "$line" | jq -e -c . >>"$tmp"
 done <"$file"
 

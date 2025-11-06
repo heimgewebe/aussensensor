@@ -25,51 +25,51 @@ USAGE
 
 normalize_bool() {
   case "${1:-}" in
-    1|true|TRUE|yes|YES|on|ON)
-      printf '1'
-      ;;
-    0|false|FALSE|no|NO|off|OFF|'')
-      printf '0'
-      ;;
-    *)
-      return 1
-      ;;
+  1 | true | TRUE | yes | YES | on | ON)
+    printf '1'
+    ;;
+  0 | false | FALSE | no | NO | off | OFF | '')
+    printf '0'
+    ;;
+  *)
+    return 1
+    ;;
   esac
 }
 
 FILE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --content-type)
-      if [[ $# -lt 2 ]]; then
-        echo "Fehlender Wert für --content-type" >&2
-        exit 1
-      fi
-      CONTENT_TYPE="$2"
-      shift 2
-      ;;
-    --dry-run)
-      DRY_RUN="1"
-      shift
-      ;;
-    -h|--help)
-      print_usage
-      exit 0
-      ;;
-    -*)
-      echo "Unbekannte Option: $1" >&2
+  --content-type)
+    if [[ $# -lt 2 ]]; then
+      echo "Fehlender Wert für --content-type" >&2
+      exit 1
+    fi
+    CONTENT_TYPE="$2"
+    shift 2
+    ;;
+  --dry-run)
+    DRY_RUN="1"
+    shift
+    ;;
+  -h | --help)
+    print_usage
+    exit 0
+    ;;
+  -*)
+    echo "Unbekannte Option: $1" >&2
+    print_usage
+    exit 1
+    ;;
+  *)
+    if [[ -n "$FILE" ]]; then
+      echo "Mehr als eine Datei angegeben" >&2
       print_usage
       exit 1
-      ;;
-    *)
-      if [[ -n "$FILE" ]]; then
-        echo "Mehr als eine Datei angegeben" >&2
-        print_usage
-        exit 1
-      fi
-      FILE="$1"
-      shift
-      ;;
+    fi
+    FILE="$1"
+    shift
+    ;;
   esac
 
 done
@@ -110,7 +110,10 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   exit 0
 fi
 
-command -v curl >/dev/null 2>&1 || { echo "Fehlt: curl" >&2; exit 1; }
+command -v curl >/dev/null 2>&1 || {
+  echo "Fehlt: curl" >&2
+  exit 1
+}
 
 : "${HEIMLERN_INGEST_URL:?set HEIMLERN_INGEST_URL}"
 
@@ -120,4 +123,3 @@ curl --fail --silent --show-error --request POST "$HEIMLERN_INGEST_URL" \
   --write-out '\nHTTP:%{http_code}\n'
 
 echo "✅ Push erfolgreich"
-

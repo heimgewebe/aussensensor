@@ -13,7 +13,10 @@ cleanup() { rm -f "$TMP_EVENT_FILE"; }
 trap cleanup EXIT INT TERM
 
 need() {
-  command -v "$1" >/dev/null 2>&1 || { echo "Fehlt: $1" >&2; exit 1; }
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "Fehlt: $1" >&2
+    exit 1
+  }
 }
 
 print_usage() {
@@ -42,31 +45,31 @@ need npx
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -s|--schema)
-      if [[ $# -lt 2 ]]; then
-        echo "Fehler: --schema benötigt einen Pfad." >&2
-        print_usage
-        exit 1
-      fi
-      SCHEMA_FILE="$2"
-      shift 2
-      ;;
-    -h|--help)
-      print_usage
-      exit 0
-      ;;
-    --)
-      shift
-      break
-      ;;
-    -*)
-      echo "Unbekannte Option: $1" >&2
+  -s | --schema)
+    if [[ $# -lt 2 ]]; then
+      echo "Fehler: --schema benötigt einen Pfad." >&2
       print_usage
       exit 1
-      ;;
-    *)
-      break
-      ;;
+    fi
+    SCHEMA_FILE="$2"
+    shift 2
+    ;;
+  -h | --help)
+    print_usage
+    exit 0
+    ;;
+  --)
+    shift
+    break
+    ;;
+  -*)
+    echo "Unbekannte Option: $1" >&2
+    print_usage
+    exit 1
+    ;;
+  *)
+    break
+    ;;
   esac
 done
 
@@ -86,9 +89,9 @@ validate_line() {
   local context="${2:-stdin}"
 
   # Leere Zeilen ignorieren
-  [[ -z "${line// }" ]] && return 0
+  [[ -z "${line// /}" ]] && return 0
 
-  printf '%s\n' "$line" > "$TMP_EVENT_FILE"
+  printf '%s\n' "$line" >"$TMP_EVENT_FILE"
 
   local ajv_output
   local -a ajv_cmd=(
@@ -120,9 +123,9 @@ if [[ ${#FILES_TO_CHECK[@]} -gt 0 ]]; then
     seen=0
     while IFS= read -r line || [ -n "$line" ]; do
       line_num=$((line_num + 1))
-      [[ -z "${line// }" ]] || seen=1
+      [[ -z "${line// /}" ]] || seen=1
       validate_line "$line" "Zeile $line_num in '$FILE_TO_CHECK'"
-    done < "$FILE_TO_CHECK"
+    done <"$FILE_TO_CHECK"
 
     if [[ $seen -eq 0 ]]; then
       if [[ "$REQUIRE_NONEMPTY" -eq 1 ]]; then
@@ -143,7 +146,7 @@ elif [[ ${#FILES_TO_CHECK[@]} -eq 0 && ! -t 0 ]]; then
   seen=0
   while IFS= read -r line || [ -n "$line" ]; do
     line_num=$((line_num + 1))
-    [[ -z "${line// }" ]] || seen=1
+    [[ -z "${line// /}" ]] || seen=1
     validate_line "$line" "stdin (Zeile $line_num)"
   done
 
