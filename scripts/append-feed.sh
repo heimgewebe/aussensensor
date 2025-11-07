@@ -282,9 +282,16 @@ append_to_feed() {
 
       # xattrs (optional)
       if command -v getfattr >/dev/null 2>&1 && command -v setfattr >/dev/null 2>&1; then
-        getfattr -d -m - "$OUTPUT_FILE" 2>/dev/null \
-          | awk -v file="$TMP_FEED_FILE" 'NR==1{print "# file: " file; next} {print}' \
-          | setfattr --restore=- 2>/dev/null || true
+        TMP_XATTR_FILE="$(safe_mktemp)"
+        getfattr -d -m - "$OUTPUT_FILE" 2>/dev/null > "$TMP_XATTR_FILE"
+        # Replace or add file path comment as needed
+        if grep -q '^# file: ' "$TMP_XATTR_FILE"; then
+          sed -i "1s|^# file: .*|# file: $TMP_FEED_FILE|" "$TMP_XATTR_FILE"
+        else
+          sed -i "1i# file: $TMP_FEED_FILE" "$TMP_XATTR_FILE"
+        fi
+        setfattr --restore="$TMP_XATTR_FILE" 2>/dev/null || true
+        rm -f -- "$TMP_XATTR_FILE"
       fi
     fi
 
