@@ -232,6 +232,14 @@ append_to_feed() {
   TMP_LINE_FILE="$(safe_mktemp)"
   printf '%s\n' "$json_obj" >"$TMP_LINE_FILE"
 
+  # Lokales Cleanup, falls vor dem mv abgebrochen wird
+  TMP_FEED_FILE=""
+  cleanup_append() {
+    [[ -n "$TMP_LINE_FILE" && -f "$TMP_LINE_FILE" ]] && rm -f -- "$TMP_LINE_FILE"
+    [[ -n "$TMP_FEED_FILE" && -f "$TMP_FEED_FILE" ]] && rm -f -- "$TMP_FEED_FILE"
+  }
+  trap cleanup_append EXIT INT TERM
+
   if have flock; then
     # Lock-basiertes, konkurrenzsicheres Anhängen
     exec 9>"$LOCK_FILE"
@@ -246,33 +254,55 @@ append_to_feed() {
     fi
     exec 9>&-
   else
-    # Fallback ohne flock: "append" via atomarem Replace,
-    # dabei Rechte/Owner der Zieldatei beibehalten.
-    echo "append-feed: flock nicht verfügbar, nutze atomaren Fallback (mit Rechte-Erhalt)" >&2
+    # Fallback ohne flock: atomar ersetzen und Metadaten der Originaldatei übernehmen.
+    echo "append-feed: flock nicht verfügbar, nutze atomaren Fallback (mit Metadaten-Erhalt)" >&2
     TMP_FEED_FILE="$(safe_mktemp)"
 
-    # Bestehenden Feed (falls vorhanden) in Temp übernehmen
     if [[ -f "$OUTPUT_FILE" ]]; then
-      # 1) Inhalt kopieren
+      # Inhalt übernehmen
       cp -f -- "$OUTPUT_FILE" "$TMP_FEED_FILE"
-      # 2) Temp-Datei auf Mode/Owner der bestehenden Datei setzen
-      mode="$(stat -c '%a' "$OUTPUT_FILE" 2>/dev/null || echo "")"
-      owner="$(stat -c '%u' "$OUTPUT_FILE" 2>/dev/null || echo "")"
-      group="$(stat -c '%g' "$OUTPUT_FILE" 2>/dev/null || echo "")"
-      if [[ -n "$mode" && -n "$owner" && -n "$group" ]]; then
-        chmod "$mode" "$TMP_FEED_FILE"
-        chown "$owner:$group" "$TMP_FEED_FILE" 2>/dev/null || true
-      else
-        echo "Warnung: Konnte Modus/Besitzer/Gruppeninformationen von $OUTPUT_FILE nicht ermitteln, überspringe chmod/chown." >&2
+      # Basis-Metadaten klonen (Modus/Owner/Gruppe/Zeitstempel)
+      chmod --reference="$OUTPUT_FILE" "$TMP_FEED_FILE" 2>/dev/null || true
+      chown --reference="$OUTPUT_FILE" "$TMP_FEED_FILE" 2>/dev/null || true
+      touch --reference="$OUTPUT_FILE" "$TMP_FEED_FILE" 2>/dev/null || true
+      # SELinux-Kontext (optional)
+      if command -v chcon >/dev/null 2>&1; then
+        chcon --reference="$OUTPUT_FILE" "$TMP_FEED_FILE" 2>/dev/null || true
+      fi
+
+      # ACLs (optional)
+      if command -v getfacl >/dev/null 2>&1 && command -v setfacl >/dev/null 2>&1; then
+        TMP_ACL_FILE="$(safe_mktemp)"
+        getfacl --absolute-names "$OUTPUT_FILE" 2>/dev/null > "$TMP_ACL_FILE"
+        # Replace the file comment to reference the new file
+        sed -i "1s|^# file: .*|# file: $TMP_FEED_FILE|" "$TMP_ACL_FILE"
+        setfacl --restore="$TMP_ACL_FILE" 2>/dev/null || true
+        rm -f -- "$TMP_ACL_FILE"
+      fi
+
+      # xattrs (optional)
+      if command -v getfattr >/dev/null 2>&1 && command -v setfattr >/dev/null 2>&1; then
+        TMP_XATTR_FILE="$(safe_mktemp)"
+        getfattr -d -m - "$OUTPUT_FILE" 2>/dev/null > "$TMP_XATTR_FILE"
+        # Replace or add file path comment as needed
+        if grep -q '^# file: ' "$TMP_XATTR_FILE"; then
+          sed -i "1s|^# file: .*|# file: $TMP_FEED_FILE|" "$TMP_XATTR_FILE"
+        else
+          sed -i "1i# file: $TMP_FEED_FILE" "$TMP_XATTR_FILE"
+        fi
+        setfattr --restore="$TMP_XATTR_FILE" 2>/dev/null || true
+        rm -f -- "$TMP_XATTR_FILE"
       fi
     fi
 
-    # Neue Zeile anhängen
+    # Neue Zeile anhängen und dann atomar ersetzen
     cat "$TMP_LINE_FILE" >>"$TMP_FEED_FILE"
-
-    # 3) Atomar ersetzen (Temp behält jetzt die gewünschten Attribute)
     mv -f -- "$TMP_FEED_FILE" "$OUTPUT_FILE"
   fi
+
+  # Erfolgreich: Cleanup & Trap entfernen
+  cleanup_append
+  trap - EXIT INT TERM
 }
 
 main() {
