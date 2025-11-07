@@ -272,9 +272,12 @@ append_to_feed() {
 
       # ACLs (optional)
       if command -v getfacl >/dev/null 2>&1 && command -v setfacl >/dev/null 2>&1; then
-        getfacl --absolute-names "$OUTPUT_FILE" 2>/dev/null \
-          | awk -v file="$TMP_FEED_FILE" 'NR==1{print "# file: " file; next} {print}' \
-          | setfacl --restore=- 2>/dev/null || true
+        TMP_ACL_FILE="$(safe_mktemp)"
+        getfacl --absolute-names "$OUTPUT_FILE" 2>/dev/null > "$TMP_ACL_FILE"
+        # Replace the file comment to reference the new file
+        sed -i "1s|^# file: .*|# file: $TMP_FEED_FILE|" "$TMP_ACL_FILE"
+        setfacl --restore="$TMP_ACL_FILE" 2>/dev/null || true
+        rm -f -- "$TMP_ACL_FILE"
       fi
 
       # xattrs (optional)
