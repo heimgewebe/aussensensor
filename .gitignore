@@ -6,3 +6,4 @@ node_modules/
 !export/
 !export/.gitkeep
 !export/feed.jsonl
+metrics.json
