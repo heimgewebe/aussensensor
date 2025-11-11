@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# PREFERRED PATH — push curated events to leitstand (/v1/ingest).
+# heimlern and others will consume from leitstand (stream/webhook/batch).
 set -euo pipefail
 
 print_usage() {

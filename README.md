@@ -8,7 +8,11 @@ aussensensor kuratiert externe Informationsquellen (Newsfeeds, Wetter, Lagebilde
 ## Systemkontext und Zielsetzung
 - **Zielgruppe:** Operator:innen und Analyst:innen, die ein konsolidiertes Lagebild benötigen.
 - **Einordnung:** aussensensor dient als vorgelagerter Kurationspunkt für externe Quellen und beliefert den Leitstand über die `/ingest/aussen`-Schnittstelle.
-- **Datenfluss:** Quellen → Kurationsskripte → `export/feed.jsonl` → Push an Leitstand → Speicherung/Weiterverarbeitung im Leitstand.
+- **Datenfluss:**
+  **MVP vs. Zielpfad**
+
+  - **Heute (MVP):** `aussensensor → leitstand` **und** (parallel) `→ heimlern`
+  - **Ziel:** nur `aussensensor → leitstand`; `heimlern` konsumiert aus leitstand (Stream/Webhook/Batch)
 Architekturentscheidungen, die zu diesem Design führten, sind in den [ADRs](docs/adr/README.md) dokumentiert.
 
 ## Komponentenüberblick
