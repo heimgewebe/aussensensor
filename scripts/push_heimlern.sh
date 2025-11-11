@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# MVP PATH — temporary: direct push to heimlern for early policy evaluation.
+# Target architecture: *only* push to leitstand (/v1/ingest); heimlern consumes from there.
+# This script will be removed once leitstand streaming/webhook is in place.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
