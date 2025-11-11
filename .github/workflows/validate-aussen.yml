@@ -6,6 +6,9 @@ on:
       - 'fixtures/**.jsonl'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   validate:
     uses: heimgewebe/metarepo/.github/workflows/reusable-validate-jsonl.yml@contracts-v1
