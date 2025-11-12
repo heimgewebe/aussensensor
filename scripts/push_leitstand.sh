@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# PREFERRED PATH — push curated events to leitstand (/v1/ingest).
-# heimlern and others will consume from leitstand (stream/webhook/batch).
+# MVP vs. Zielpfad
+# - Zielpfad (bevorzugt): ingest NUR via leitstand (/v1/ingest)
+# - Dieses Skript ist bereits auf das Ziel ausgelegt und fällt bei Bedarf auf curl zurück.
 set -euo pipefail
 
 print_usage() {
@@ -88,36 +89,34 @@ command -v curl >/dev/null 2>&1 || {
   exit 1
 }
 
-# Nur NICHT-leere Zeilen zählen (robust gg. Leerraum)
-event_count="$(grep -cv '^[[:space:]]*$' "$FILE_PATH" 2>/dev/null || echo 0)"
-[[ -s "$FILE_PATH" ]] || echo "Warnung: Datei '$FILE_PATH' ist leer." >&2
-
-if [[ "$DRY_RUN" -eq 1 ]]; then
-  echo "[DRY-RUN] Würde $event_count Ereignis(se) an '$INGEST_URL' übertragen." >&2
-  echo "[DRY-RUN] Datei: $FILE_PATH" >&2
-  echo "[DRY-RUN] Content-Type: $CONTENT_TYPE" >&2
+if command -v aussensensor-push >/dev/null 2>&1; then
+  echo "→ Push via aussensensor-push (NDJSON) → $INGEST_URL"
+  AUSSENSENSOR_ARGS=("--url" "$INGEST_URL" "--file" "$FILE_PATH")
   if [[ -n "$AUTH_TOKEN" ]]; then
-    echo "[DRY-RUN] Token: gesetzt (${#AUTH_TOKEN} Zeichen)." >&2
-  else
-    echo "[DRY-RUN] Token: nicht gesetzt." >&2
+    AUSSENSENSOR_ARGS+=("--token" "$AUTH_TOKEN")
   fi
-  head -n5 "$FILE_PATH" >&2 || true
-  exit 0
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    AUSSENSENSOR_ARGS+=("--dry-run")
+  fi
+  aussensensor-push "${AUSSENSENSOR_ARGS[@]}"
+else
+  echo "→ Push via curl (Fallback) → $INGEST_URL"
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    echo "[DRY-RUN] Würde $(grep -c . "$FILE_PATH") Ereignis(se) an '$INGEST_URL' übertragen." >&2
+    echo "[DRY-RUN] Datei: $FILE_PATH" >&2
+    echo "[DRY-RUN] Content-Type: $CONTENT_TYPE" >&2
+    if [[ -n "$AUTH_TOKEN" ]]; then
+      echo "[DRY-RUN] Token: gesetzt (${#AUTH_TOKEN} Zeichen)." >&2
+    else
+      echo "[DRY-RUN] Token: nicht gesetzt." >&2
+    fi
+    head -n5 "$FILE_PATH" >&2 || true
+    exit 0
+  fi
+  CURL_ARGS=("-fsS" "-H" "content-type: $CONTENT_TYPE" "--data-binary" "@$FILE_PATH")
+  if [[ -n "$AUTH_TOKEN" ]]; then
+    CURL_ARGS+=("-H" "x-auth: $AUTH_TOKEN")
+  fi
+  curl "${CURL_ARGS[@]}" "$INGEST_URL"
+  echo
 fi
-
-curl_args=(
-  --fail
-  --silent
-  --show-error
-  --request POST
-  --header "Content-Type: $CONTENT_TYPE"
-  --data-binary "@$FILE_PATH"
-)
-[[ -n "$AUTH_TOKEN" ]] && curl_args+=(--header "x-auth: $AUTH_TOKEN")
-
-if ! curl "${curl_args[@]}" "$INGEST_URL"; then
-  echo "Fehler: Push an Leitstand fehlgeschlagen." >&2
-  exit 1
-fi
-
-printf '\n[%s] OK: Feed an %s gesendet.\n' "$(date -Iseconds)" "$INGEST_URL" >&2
