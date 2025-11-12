@@ -140,3 +140,7 @@ Beispiel (lokal):
 4. **Self-Service-Dokumentation**: Beispiele für neue Quellen, Onboarding-Checkliste.
 
 Weitere Details und Entscheidungen sind in den [Architecture Decision Records](docs/adr/README.md) dokumentiert.
+
+## MVP vs. Zielpfad
+- **MVP:** `scripts/push_heimlern.sh` (Direkt-Push) – temporär.
+- **Ziel:** `scripts/push_leitstand.sh` (nur leitstand ingest) – bitte bevorzugen.

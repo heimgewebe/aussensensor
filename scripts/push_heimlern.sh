@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# WARNUNG: MVP-PFAD (Übergangsphase)
-# Dieser direkte Push bleibt nur vorübergehend bestehen!
-# Zielarchitektur: ingest ausschließlich via leitstand; heimlern konsumiert von dort (Stream/Webhook).
+# MVP-WORKAROUND:
+# Direkter Push zu heimlern. Zielarchitektur: ingest NUR via leitstand.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
