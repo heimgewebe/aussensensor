@@ -1,10 +1,7 @@
 node_modules/
 .DS_Store
 
-# Stelle sicher, dass export/ und feed.jsonl versioniert werden dürfen
-# (entferne ggf. ein globales export/*-Ignore).
-!export/
-!export/.gitkeep
-!export/feed.jsonl
+# Generated data
+export/
 metrics.json
 tools/aussensensor-push/target

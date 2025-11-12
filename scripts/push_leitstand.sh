@@ -84,11 +84,6 @@ done
   echo "Fehler: Datei '$FILE_PATH' nicht gefunden." >&2
   exit 1
 }
-command -v curl >/dev/null 2>&1 || {
-  echo "Fehlt: curl" >&2
-  exit 1
-}
-
 if command -v aussensensor-push >/dev/null 2>&1; then
   echo "→ Push via aussensensor-push (NDJSON) → $INGEST_URL"
   AUSSENSENSOR_ARGS=("--url" "$INGEST_URL" "--file" "$FILE_PATH")
@@ -100,6 +95,10 @@ if command -v aussensensor-push >/dev/null 2>&1; then
   fi
   aussensensor-push "${AUSSENSENSOR_ARGS[@]}"
 else
+  command -v curl >/dev/null 2>&1 || {
+    echo "Fehlt: curl" >&2
+    exit 1
+  }
   echo "→ Push via curl (Fallback) → $INGEST_URL"
   if [[ "$DRY_RUN" -eq 1 ]]; then
     echo "[DRY-RUN] Würde $(grep -c . "$FILE_PATH") Ereignis(se) an '$INGEST_URL' übertragen." >&2
