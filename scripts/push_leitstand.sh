@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# MVP vs. Zielpfad
-# - Zielpfad (bevorzugt): ingest NUR via leitstand (/v1/ingest)
-# - Dieses Skript ist bereits auf das Ziel ausgelegt und fällt bei Bedarf auf curl zurück.
+# PREFERRED PATH:
+# Standard-Ingest erfolgt via leitstand (/v1/ingest).
 set -euo pipefail
 
 print_usage() {

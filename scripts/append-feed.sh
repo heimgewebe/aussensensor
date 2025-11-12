@@ -244,7 +244,6 @@ append_to_feed() {
     # Lock-basiertes, konkurrenzsicheres Anhängen
     exec 9>"$LOCK_FILE"
     local lock_timeout="${APPEND_LOCK_TIMEOUT:-10}"
-    echo "append-feed: Verwende flock mit Timeout ${lock_timeout}s" >&2
     if flock -w "$lock_timeout" 9; then
       cat "$TMP_LINE_FILE" >>"$OUTPUT_FILE"
       flock -u 9
@@ -255,7 +254,6 @@ append_to_feed() {
     exec 9>&-
   else
     # Fallback ohne flock: atomar ersetzen und Metadaten der Originaldatei übernehmen.
-    echo "append-feed: flock nicht verfügbar, nutze atomaren Fallback (mit Metadaten-Erhalt)" >&2
     TMP_FEED_FILE="$(safe_mktemp)"
 
     if [[ -f "$OUTPUT_FILE" ]]; then
