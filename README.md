@@ -9,10 +9,10 @@ aussensensor kuratiert externe Informationsquellen (Newsfeeds, Wetter, Lagebilde
 - **Zielgruppe:** Operator:innen und Analyst:innen, die ein konsolidiertes Lagebild benötigen.
 - **Einordnung:** aussensensor dient als vorgelagerter Kurationspunkt für externe Quellen und beliefert den Leitstand über die `/ingest/aussen`-Schnittstelle.
 - **Datenfluss:**
-  **MVP vs. Zielpfad**
+  **MVP (heute)**: aussensensor → direkt **heimlern** **und** → **leitstand**  
+  **Zielbild**: aussensensor → **nur** leitstand `/v1/ingest`; Consumer lesen von dort (Stream/Webhook)
 
-  - **Heute (MVP):** `aussensensor → leitstand` **und** (parallel) `→ heimlern`
-  - **Ziel:** nur `aussensensor → leitstand`; `heimlern` konsumiert aus leitstand (Stream/Webhook/Batch)
+  > Hinweis: Skripte sind entsprechend markiert. Bevorzugter Pfad: **leitstand**.
 Architekturentscheidungen, die zu diesem Design führten, sind in den [ADRs](docs/adr/README.md) dokumentiert.
 
 ## Komponentenüberblick
@@ -58,15 +58,13 @@ Siehe [docs/runbook.md](docs/runbook.md). CI validiert `export/feed.jsonl` gegen
 
 Bei Eingabefehlern bricht das Skript mit einem nicht-null Exit-Code ab. Bereits vorhandene Einträge bleiben unverändert.
 
-### Feed übertragen
-```bash
-export LEITSTAND_INGEST_URL="https://leitstand.example/ingest/aussen"
-./scripts/push_leitstand.sh [--dry-run] [--file export/feed.jsonl] [--url "…"] [--token "$LEITSTAND_TOKEN"] [--content-type application/jsonl]
-```
-- Standardmäßig werden Ereignisse per `POST` im JSON Lines/NDJSON-Format übertragen mit `Content-Type: application/x-ndjson` (de-facto Standard und weit verbreitet).
-- Bei Bedarf kann der Header überschrieben werden, entweder über `--content-type …` oder via Environment `CONTENT_TYPE=…`.
-- Mit `--dry-run` wird nur ausgegeben, welche Daten gesendet würden; es erfolgt kein HTTP-Request.
-- Das Skript liest URL und Token aus der Umgebung, akzeptiert aber auch explizite Argumente. Die Datei wird nicht verändert; `curl` erhält sie via `--data-binary`.
+### Push
+Bevorzugt: `scripts/push_leitstand.sh` (Zielarchitektur).  
+MVP-Pfad (vorübergehend): `scripts/push_heimlern.sh` (direkter Push).
+
+Optional steht ein kleines Binary `aussensensor-push` bereit (Rust),
+das NDJSON korrekt an `/v1/ingest` sendet. Die Skripte nutzen es,
+falls vorhanden; sonst wird auf `curl` zurückgefallen.
 
 ### Validierung & Tests
 - Lokale Schema-Validierung (AJV, Draft 2020-12):
@@ -98,6 +96,14 @@ This project uses `bats-core` for automated testing. The tests are located in th
 ```bash
 ./tests/run.sh
 ```
+
+### Build (optional)
+```bash
+cd tools/aussensensor-push
+cargo build --release
+sudo install -m 0755 target/release/aussensensor-push /usr/local/bin/
+```
+Die Push-Skripte verwenden das Binary automatisch, wenn vorhanden (sonst `curl`).
 
 ## Ereignisschema & Datenqualität
 - Pflichtfelder laut Contract: `ts` (ISO-8601), `type` (`news|sensor|project|alert`), `source`, `title`. Darüber hinaus werden `summary`, `url` und `tags[]` immer geschrieben (leere Strings bzw. leeres Array), damit Downstream-Services fixe Spalten haben.
