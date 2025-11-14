@@ -38,24 +38,25 @@ Dieses Runbook beschreibt den täglichen Ablauf für das Kuratieren und Ausliefe
    - Erst wenn beide Workflows grün sind, gilt der Feed als freigegeben.
 6. **Feed übertragen (falls erforderlich)**
    ```bash
-   export LEITSTAND_INGEST_URL="https://leitstand.example/ingest/aussen"
-   ./scripts/push_leitstand.sh --dry-run   # zum Testen
-   ./scripts/push_leitstand.sh             # produktiver Push
+   export CHRONIK_INGEST_URL="https://chronik.example/ingest/aussen"
+   ./scripts/push_chronik.sh --dry-run   # zum Testen
+   ./scripts/push_chronik.sh             # produktiver Push
    ```
-   - Token via `LEITSTAND_TOKEN` setzen oder Flag `--token` nutzen.
+   - Token via `CHRONIK_TOKEN` setzen oder Flag `--token` nutzen.
    - Dry-Run prüfen, danach echten Push ausführen.
+   - Hinweis: Das `leitstand`-Repo ist künftig das UI/Dashboard.
 
 ## Änderungsfreeze / Freeze-Prozedur
 Wenn der Feed eingefroren werden muss (z. B. vor einem Incident-Review oder wegen ungeklärter Validierungsfehler):
 1. **Kommunizieren**
-   - Im Teamkanal (z. B. `#leitstand`) Freeze ankündigen und Grund nennen.
+   - Im Teamkanal (z. B. `#chronik-feed`) Freeze ankündigen und Grund nennen.
    - Issue oder Incident-Notiz im Repository anlegen.
 2. **Freeze markieren**
    - Branch `freeze/<datum>-<kurzgrund>` erstellen.
    - Datei `export/feed.jsonl` in `main` nicht mehr verändern.
    - Optional: GitHub Environment "freeze" nutzen (falls vorhanden) und Deployment blockieren.
 3. **CI überwachen**
-   - `validate (aussensensor feed)` muss zuletzt grün gelaufen sein; bei roten Läufen *kein* Push an den Leitstand.
+   - `validate (aussensor feed)` muss zuletzt grün gelaufen sein; bei roten Läufen *kein* Push an die Chronik.
    - Offene Pull Requests pausieren (Draft-Status setzen).
 4. **Freeze beenden**
    - Ursache analysieren und beheben (z. B. invalide Zeile entfernen/reparieren).
@@ -77,5 +78,5 @@ Wenn der Feed eingefroren werden muss (z. B. vor einem Incident-Review oder we
 ## Checkliste vor Schichtende
 - Offene Änderungen committed und gepusht?
 - Letzte CI-Läufe grün?
-- Leitstand mit aktuellem Feed versorgt (falls notwendig)?
+- Chronik mit aktuellem Feed versorgt (falls notwendig)?
 - Offene Incidents oder Freeze-Status dokumentiert?
