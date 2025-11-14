@@ -3,16 +3,16 @@
 [![validate (aussensensor feed)](https://github.com/heimgewebe/aussensensor/actions/workflows/validate-feed.yml/badge.svg)](https://github.com/heimgewebe/aussensensor/actions/workflows/validate-feed.yml)
 [![validate (aussen fixtures)](https://github.com/heimgewebe/aussensensor/actions/workflows/validate-aussen-fixtures.yml/badge.svg)](https://github.com/heimgewebe/aussensensor/actions/workflows/validate-aussen-fixtures.yml)
 
-aussensensor kuratiert externe Informationsquellen (Newsfeeds, Wetter, Lagebilder) und stellt sie in einem konsistenten Ereignisformat für den Leitstand zur Verfügung. Die aktuelle Implementierung besteht aus einfachen Bash-Hilfsskripten, die den Feed in `export/feed.jsonl` pflegen und manuell an den Leitstand übertragen. Langfristig ist eine Migration zu einem dauerhaften Daemon geplant (siehe [docs/adr](docs/adr/README.md)).
+aussensensor kuratiert externe Informationsquellen (Newsfeeds, Wetter, Lagebilder) und stellt sie in einem konsistenten Ereignisformat für die Chronik zur Verfügung. Die aktuelle Implementierung besteht aus einfachen Bash-Hilfsskripten, die den Feed in `export/feed.jsonl` pflegen und manuell an die Chronik übertragen. Langfristig ist eine Migration zu einem dauerhaften Daemon geplant (siehe [docs/adr](docs/adr/README.md)).
 
 ## Systemkontext und Zielsetzung
 - **Zielgruppe:** Operator:innen und Analyst:innen, die ein konsolidiertes Lagebild benötigen.
-- **Einordnung:** aussensensor dient als vorgelagerter Kurationspunkt für externe Quellen und beliefert den Leitstand über die `/ingest/aussen`-Schnittstelle.
+- **Einordnung:** aussensensor dient als vorgelagerter Kurationspunkt für externe Quellen und beliefert die Chronik über die `/ingest/aussen`-Schnittstelle. Das `leitstand`-Repo ist künftig das UI/Dashboard.
 - **Datenfluss:**
-  **MVP (heute)**: aussensensor → direkt **heimlern** **und** → **leitstand**  
-  **Zielbild**: aussensensor → **nur** leitstand `/v1/ingest`; Consumer lesen von dort (Stream/Webhook)
+  **MVP (heute)**: aussensensor → direkt **heimlern** **und** → **chronik**  
+  **Zielbild**: aussensensor → **nur** chronik `/v1/ingest`; Consumer lesen von dort (Stream/Webhook)
 
-  > Hinweis: Skripte sind entsprechend markiert. Bevorzugter Pfad: **leitstand**.
+  > Hinweis: Skripte sind entsprechend markiert. Bevorzugter Pfad: **chronik**.
 Architekturentscheidungen, die zu diesem Design führten, sind in den [ADRs](docs/adr/README.md) dokumentiert.
 
 ## Komponentenüberblick
@@ -20,7 +20,7 @@ Architekturentscheidungen, die zu diesem Design führten, sind in den [ADRs](doc
 | --- | --- |
 | `scripts/append-feed.sh` | Fügt dem Feed ein neues Ereignis im JSONL-Format hinzu und erzwingt Contract-Konformität. |
 | `scripts/validate.sh` | Validiert eine JSONL-Datei gegen das Schema. |
-| `scripts/push_leitstand.sh` | Überträgt den kompletten Feed an die Leitstand-Ingest-API oder führt einen Dry-Run aus. |
+| `scripts/push_chronik.sh` | Überträgt den kompletten Feed an die Chronik-Ingest-API oder führt einen Dry-Run aus. |
 | `scripts/push_heimlern.sh` | Stößt den Push des Feeds an die Heimlern-Ingest-API an. |
 | `contracts/aussen.event.schema.json` | JSON-Schema des Ereignisformats (Contract). |
 | `export/feed.jsonl` | Sammeldatei aller kuratierten Ereignisse. |
@@ -32,16 +32,16 @@ Architekturentscheidungen, die zu diesem Design führten, sind in den [ADRs](doc
 - POSIX-kompatible Shell (getestet mit `bash`)
 - `jq` ≥ 1.6 für JSON-Verarbeitung
 - `curl` für HTTP-Requests
-- Zugriff auf die Leitstand-Umgebung inkl. gültigem Token
+- Zugriff auf die Chronik-Umgebung inkl. gültigem Token
 
 ## Einrichtung
 1. Repository klonen und in das Projektverzeichnis wechseln.
 2. Environment-Variablen setzen:
-   - `LEITSTAND_INGEST_URL`: Basis-URL der Leitstand-Ingest-API (z. B. `https://leitstand.example/ingest/aussen`).
+   - `CHRONIK_INGEST_URL`: Basis-URL der Chronik-Ingest-API (z. B. `https://chronik.example/ingest/aussen`).
    - `HEIMLERN_INGEST_URL`: Endpoint der Heimlern-Ingest-API (z. B. `http://localhost:8787/ingest/aussen`).
-   - Optional: `LEITSTAND_TOKEN` für einen statischen Token (Header `x-auth`).
+   - Optional: `CHRONIK_TOKEN` für einen statischen Token (Header `x-auth`).
 3. Sicherstellen, dass `jq`, `curl` sowie (für Tests) `node`/`npx` installiert sind (`sudo apt install jq curl nodejs npm`).
-4. (Für GitHub Actions) Repository-Secrets `LEITSTAND_INGEST_URL` und `LEITSTAND_TOKEN` setzen, damit der Workflow `Push feed to Leitstand` funktioniert.
+4. (Für GitHub Actions) Repository-Secrets `CHRONIK_INGEST_URL` und `CHRONIK_TOKEN` setzen, damit der Workflow `Push feed to Chronik` funktioniert.
 
 ## Nutzung (mit Runbook & CI)
 Siehe [docs/runbook.md](docs/runbook.md). CI validiert `export/feed.jsonl` gegen den Contract.
@@ -59,7 +59,7 @@ Siehe [docs/runbook.md](docs/runbook.md). CI validiert `export/feed.jsonl` gegen
 Bei Eingabefehlern bricht das Skript mit einem nicht-null Exit-Code ab. Bereits vorhandene Einträge bleiben unverändert.
 
 ### Push
-Bevorzugt: `scripts/push_leitstand.sh` (Zielarchitektur).  
+Bevorzugt: `scripts/push_chronik.sh` (Zielarchitektur).  
 MVP-Pfad (vorübergehend): `scripts/push_heimlern.sh` (direkter Push).
 
 Optional steht ein kleines Binary `aussensensor-push` bereit (Rust),
@@ -75,7 +75,7 @@ falls vorhanden; sonst wird auf `curl` zurückgefallen.
 
 - Beim Append erzwingt das Skript Pflichtfelder, erlaubte Typen und die Summary-Länge laut Contract. Alle Events enthalten die Contract-Felder `ts`, `type`, `source`, `title`, `summary`, `url` und `tags`.
 - GitHub Actions Workflows:
-  - `Push feed to Leitstand` validiert jede Zeile mit AJV (mittels temporärer Kopie der Datei) und stößt manuell einen Push (optional als Dry-Run) an.
+  - `Push feed to Chronik` validiert jede Zeile mit AJV (mittels temporärer Kopie der Datei) und stößt manuell einen Push (optional als Dry-Run) an.
   - `validate (aussensensor)` prüft jede Feed-Zeile automatisiert gegen das Contract-Schema (inklusive Format-Checks) bei Pushes, Pull Requests und manuellen Runs.
   - `validate (aussen fixtures)` deckt Edge-Cases anhand der Beispiel-JSONL-Dateien unter `tests/fixtures/aussen/**` ab.
 
@@ -130,11 +130,11 @@ Beispiel (lokal):
   - Erfolgs-/Fehlercodes der Skripte in einen Supervisor (Systemd, Cron) integrieren.
   - GitHub Actions Workflow als manueller Run (z. B. nach größeren Änderungen) nutzen: Dry-Run prüfen, anschließend echten Push ausführen.
   - Feed-Größe und Alter der neuesten Einträge regelmäßig prüfen (`jq -r '.ts'`).
-  - Leitstand-API-Responses lokal sichern (Follow-Up: `export/last_push_response.json`).
-- **Ereignislebenszyklus:** Erfassung → Kuratierung im Feed → Push an Leitstand → Archivierung der verarbeiteten Zeilen (Rotation über zukünftigen Daemon).
+  - Chronik-API-Responses lokal sichern (Follow-Up: `export/last_push_response.json`).
+- **Ereignislebenszyklus:** Erfassung → Kuratierung im Feed → Push an Chronik → Archivierung der verarbeiteten Zeilen (Rotation über zukünftigen Daemon).
 
 ## Roadmap (Auszug)
-1. **Automatisierte Validierung** – umgesetzt via GitHub Actions (`Push feed to Leitstand`) als manueller Einstiegspunkt.
+1. **Automatisierte Validierung** – umgesetzt via GitHub Actions (`Push feed to Chronik`) als manueller Einstiegspunkt.
 2. **Daemoni­sierung** gemäß ADR-0002: persistente Queue, Retry-Mechanismus, Backoff, Health Endpoint.
 3. **Telemetrie**: strukturierte Logs und Metriken (z. B. Prometheus) für Anzahl/Alter der Ereignisse.
 4. **Self-Service-Dokumentation**: Beispiele für neue Quellen, Onboarding-Checkliste.
@@ -143,4 +143,4 @@ Weitere Details und Entscheidungen sind in den [Architecture Decision Records](d
 
 ## MVP vs. Zielpfad
 - **MVP:** `scripts/push_heimlern.sh` (Direkt-Push) – temporär.
-- **Ziel:** `scripts/push_leitstand.sh` (nur leitstand ingest) – bitte bevorzugen.
+- **Ziel:** `scripts/push_chronik.sh` (nur chronik ingest) – bitte bevorzugen.

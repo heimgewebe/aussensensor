@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # PREFERRED PATH:
-# Standard-Ingest erfolgt via leitstand (/v1/ingest).
+# Standard-Ingest erfolgt via chronik (/v1/ingest).
 set -euo pipefail
 
 print_usage() {
   cat <<'USAGE' >&2
-Usage: scripts/push_leitstand.sh [options]
+Usage: scripts/push_chronik.sh [options]
 
 Options:
   -f, --file PATH        Pfad zur JSONL-Datei (Standard: export/feed.jsonl)
-      --url URL          Ziel-Endpoint (überschreibt $LEITSTAND_INGEST_URL)
-      --token TOKEN      Authentifizierungs-Token (überschreibt $LEITSTAND_TOKEN)
+      --url URL          Ziel-Endpoint (überschreibt $CHRONIK_INGEST_URL)
+      --token TOKEN      Authentifizierungs-Token (überschreibt $CHRONIK_TOKEN)
       --content-type CT  Content-Type (Standard: application/x-ndjson)
       --dry-run          Keine Übertragung, nur Anzeige der Aktion
   -h, --help             Hilfe anzeigen
@@ -20,8 +20,8 @@ USAGE
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 FILE_PATH="$REPO_ROOT/export/feed.jsonl"
-INGEST_URL="${LEITSTAND_INGEST_URL:-}"
-AUTH_TOKEN="${LEITSTAND_TOKEN:-}"
+INGEST_URL="${CHRONIK_INGEST_URL:-}"
+AUTH_TOKEN="${CHRONIK_TOKEN:-}"
 CONTENT_TYPE="${CONTENT_TYPE:-application/x-ndjson}"
 DRY_RUN=0
 
@@ -76,7 +76,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$INGEST_URL" ]] || {
-  echo "Fehler: LEITSTAND_INGEST_URL fehlt und --url wurde nicht übergeben." >&2
+  echo "Fehler: CHRONIK_INGEST_URL fehlt und --url wurde nicht übergeben." >&2
   exit 1
 }
 [[ -f "$FILE_PATH" ]] || {

@@ -3,7 +3,7 @@ use clap::Parser;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
-/// Send NDJSON to leitstand /v1/ingest
+/// Send NDJSON to chronik /v1/ingest
 #[derive(Parser, Debug)]
 struct Args {
     /// Base URL incl. /v1/ingest

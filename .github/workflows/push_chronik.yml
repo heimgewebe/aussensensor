@@ -1,4 +1,4 @@
-name: Push feed to Leitstand
+name: Push feed to Chronik
 permissions:
   contents: read
 
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       url:
-        description: "Optional: Override Leitstand ingest URL"
+        description: "Optional: Override Chronik ingest URL"
         required: false
         type: string
       dry_run:
@@ -47,14 +47,14 @@ jobs:
           done < "$tmp_dir/feed.jsonl"
           mv "$tmp_dir/feed.jsonl" export/feed.jsonl
 
-      - name: Push feed to Leitstand
+      - name: Push feed to Chronik
         env:
-          LEITSTAND_INGEST_URL: ${{ inputs.url != '' && inputs.url || secrets.LEITSTAND_INGEST_URL }}
-          LEITSTAND_TOKEN: ${{ secrets.LEITSTAND_TOKEN }}
+          CHRONIK_INGEST_URL: ${{ inputs.url != '' && inputs.url || secrets.CHRONIK_INGEST_URL }}
+          CHRONIK_TOKEN: ${{ secrets.CHRONIK_TOKEN }}
         run: |
           set -euo pipefail
           DRY_RUN_FLAG=""
           if [ "${{ inputs.dry_run }}" = 'true' ]; then
             DRY_RUN_FLAG="--dry-run"
           fi
-          scripts/push_leitstand.sh $DRY_RUN_FLAG
+          scripts/push_chronik.sh $DRY_RUN_FLAG

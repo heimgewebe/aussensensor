@@ -2,7 +2,7 @@
 name = "aussensensor-push"
 version = "0.1.0"
 edition = "2021"
-description = "Send NDJSON to leitstand /v1/ingest"
+description = "Send NDJSON to chronik /v1/ingest"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
