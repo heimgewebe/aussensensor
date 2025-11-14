@@ -10,7 +10,6 @@ Usage: scripts/push_chronik.sh [options]
 Options:
   -f, --file PATH        Pfad zur JSONL-Datei (Standard: export/feed.jsonl)
       --url URL          Ziel-Endpoint (überschreibt $CHRONIK_INGEST_URL)
-      --token TOKEN      Authentifizierungs-Token (überschreibt $CHRONIK_TOKEN)
       --content-type CT  Content-Type (Standard: application/x-ndjson)
       --dry-run          Keine Übertragung, nur Anzeige der Aktion
   -h, --help             Hilfe anzeigen
@@ -41,14 +40,6 @@ while [[ $# -gt 0 ]]; do
       exit 1
     }
     INGEST_URL="$2"
-    shift 2
-    ;;
-  --token)
-    [[ $# -ge 2 ]] || {
-      echo "Fehlender Parameter für --token" >&2
-      exit 1
-    }
-    AUTH_TOKEN="$2"
     shift 2
     ;;
   --content-type)
