@@ -1,0 +1,6 @@
+class: meta
+tasks:
+  smoke: "./wgx/wgx metrics-snapshot"
+  guard: "./wgx/wgx metrics-snapshot"
+  metrics: "./wgx/wgx metrics-snapshot"
+  snapshot: "./wgx/wgx metrics-snapshot"
