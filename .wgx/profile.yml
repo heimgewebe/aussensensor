@@ -1,6 +1,6 @@
 class: meta
 tasks:
-  smoke: "echo 'Running smoke test...'"
-  guard: "echo 'Running guard check...'"
-  metrics: "wgx metrics-snapshot"
-  snapshot: "wgx metrics-snapshot"
+  smoke: "./wgx/wgx metrics-snapshot"
+  guard: "./wgx/wgx metrics-snapshot"
+  metrics: "./wgx/wgx metrics-snapshot"
+  snapshot: "./wgx/wgx metrics-snapshot"
