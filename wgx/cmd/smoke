@@ -16,10 +16,10 @@ fi
 
 eval "$(parse_yaml "$PROFILE_FILE" "wgx_")"
 
-if [[ -z "$wgx_tasks_smoke" ]]; then
+if [[ -z "${wgx_tasks_smoke-}" ]]; then
     log_warn "No smoke task defined in $PROFILE_FILE"
     exit 0
 fi
 
 log_info "Running smoke task..."
-bash -c "$wgx_tasks_smoke"
+bash -c "${wgx_tasks_smoke-}"

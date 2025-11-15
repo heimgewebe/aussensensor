@@ -8,6 +8,11 @@ WGX_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$WGX_DIR/lib/logging.bash"
 
 # Befehlsauswahl basierend auf dem ersten Argument
+if [[ $# -lt 1 ]]; then
+    log_error "Kein Befehl angegeben. Verfügbar: guard, smoke, metrics-snapshot"
+    exit 1
+fi
+
 COMMAND="$1"
 shift
 

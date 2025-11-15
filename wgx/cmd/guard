@@ -16,10 +16,10 @@ fi
 
 eval "$(parse_yaml "$PROFILE_FILE" "wgx_")"
 
-if [[ -z "$wgx_tasks_guard" ]]; then
+if [[ -z "${wgx_tasks_guard-}" ]]; then
     log_warn "No guard task defined in $PROFILE_FILE"
     exit 0
 fi
 
 log_info "Running guard task..."
-bash -c "$wgx_tasks_guard"
+bash -c "${wgx_tasks_guard-}"
