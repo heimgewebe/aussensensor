@@ -1,0 +1,64 @@
+---
+# WGX Profil für aussensensor
+#
+# Dieses Profil nutzt die v1-Bash-Architektur:
+# - `class` beschreibt den Repo-Typ (für Fleet-Tools, Dashboards usw.)
+# - `tasks` sind direkt ausführbare Shell-Snippets, auf die CI und WGX-Tools
+#   zugreifen können (z.B. via heimgewebe/wgx Reusable-Workflows).
+#
+# Ziel: sinnvolle minimale Checks, ohne das Repo hart an uv/ruff zu koppeln.
+
+class: python-service
+
+tasks:
+  smoke: |
+    set -euxo pipefail
+
+    if [ -f pyproject.toml ]; then
+      if command -v uv >/dev/null 2>&1; then
+        # Schneller Sync, ohne auf perfekt gefrorenes Lockfile zu bestehen
+        uv sync --extra test || uv sync || true
+        # Kurze Smoke-Tests, bevorzugt ohne Integration
+        if uv run pytest -q -m "not integration"; then
+          echo "[wgx.smoke] pytest (not integration) OK"
+        else
+          echo "[wgx.smoke] fallback: komplette pytest-Suite"
+          uv run pytest -q || true
+        fi
+      else
+        echo "[wgx.smoke] uv nicht vorhanden – minimaler Python-Sync"
+        python -m pip install -e ".[test]" || true
+        pytest -q || true
+      fi
+    else
+      echo "[wgx.smoke] keine pyproject.toml gefunden – nichts zu tun"
+    fi
+
+  guard: |
+    set -euxo pipefail
+
+    if [ -f pyproject.toml ]; then
+      if command -v uv >/dev/null 2>&1; then
+        uv sync --extra lint --extra test || uv sync --extra test || uv sync || true
+
+        if command -v ruff >/dev/null 2>&1; then
+          uv run ruff check .
+        else
+          echo "[wgx.guard] ruff nicht installiert – Lint wird übersprungen"
+        fi
+
+        uv run pytest -q
+      else
+        echo "[wgx.guard] uv nicht vorhanden – pip-Fallback"
+        python -m pip install -e ".[test]" || true
+        pytest -q
+      fi
+    else
+      echo "[wgx.guard] keine pyproject.toml gefunden – Guard nur informativ"
+    fi
+
+  metrics: |
+    echo "[wgx.metrics] für aussensensor noch nicht definiert"
+
+  snapshot: |
+    echo "[wgx.snapshot] kein spezielles Snapshot-Task definiert"

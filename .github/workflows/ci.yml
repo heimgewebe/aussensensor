@@ -1,0 +1,16 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    uses: heimgewebe/wgx/.github/workflows/wgx-guard.yml@main
+
+  smoke:
+    uses: heimgewebe/wgx/.github/workflows/wgx-smoke.yml@main
