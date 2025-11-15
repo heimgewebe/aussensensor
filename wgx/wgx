@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+WGX_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Hilfsfunktionen und Konfiguration laden
+source "$WGX_DIR/lib/logging.bash"
+
+# Befehlsauswahl basierend auf dem ersten Argument
+COMMAND="$1"
+shift
+
+case "$COMMAND" in
+    metrics-snapshot)
+        exec "$WGX_DIR/cmd/metrics-snapshot" "$@"
+        ;;
+    guard)
+        exec "$WGX_DIR/cmd/guard" "$@"
+        ;;
+    smoke)
+        exec "$WGX_DIR/cmd/smoke" "$@"
+        ;;
+    *)
+        log_error "Unbekannter Befehl: $COMMAND"
+        exit 1
+        ;;
+esac

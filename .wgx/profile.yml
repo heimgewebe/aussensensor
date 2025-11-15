@@ -1,0 +1,6 @@
+class:
+tasks:
+  smoke: ""
+  guard: ""
+  metrics: ""
+  snapshot: ""

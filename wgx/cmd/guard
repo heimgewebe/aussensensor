@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+WGX_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+source "$WGX_DIR/lib/logging.bash"
+source "$WGX_DIR/lib/parse_yaml.sh"
+
+PROFILE_FILE="$WGX_DIR/../.wgx/profile.yml"
+
+if [[ ! -f "$PROFILE_FILE" ]]; then
+    log_error "Profile file not found: $PROFILE_FILE"
+    exit 1
+fi
+
+eval "$(parse_yaml "$PROFILE_FILE" "wgx_")"
+
+if [[ -z "$wgx_tasks_guard" ]]; then
+    log_warn "No guard task defined in $PROFILE_FILE"
+    exit 0
+fi
+
+log_info "Running guard task..."
+bash -c "$wgx_tasks_guard"
