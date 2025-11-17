@@ -1,0 +1,32 @@
+name: wgx-guard
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - ".wgx/**"
+      - ".github/workflows/**"
+      - "scripts/**"
+      - "contracts/**"
+      - "export/*.jsonl"
+  push:
+    branches: [ main ]
+    paths:
+      - ".wgx/**"
+      - ".github/workflows/**"
+      - "scripts/**"
+      - "contracts/**"
+      - "export/*.jsonl"
+  workflow_dispatch:
+
+jobs:
+  guard:
+    name: "WGX guard (central)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run WGX guard via central action
+        uses: heimgewebe/wgx/.github/actions/wgx-check@main
+        with:
+          repo: heimgewebe/aussensensor
