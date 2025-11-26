@@ -20,7 +20,7 @@ Date: 2025-10-12
 ## Konsequenzen
 - Deutlich robusterer Betrieb mit automatischem Fehlerhandling, reduziertem manuellen Aufwand und besseren Einblicken.
 - Höherer initialer Entwicklungsaufwand (Daemon, Tests, Deployment-Setup) und Bedarf an Build-/Runtime-Infrastruktur.
-- CI/CD muss angepasst werden (Container-Build, Linting, Integrationstests gegen Leitstand-Staging).
+- CI/CD muss angepasst werden (Container-Build, Linting, Integrationstests gegen Chronik-Staging).
 - Schulung/Onboarding für Operator:innen bzgl. Monitoring und Deployment des Daemons.
 
 ## Umsetzungsfahrplan

@@ -4,7 +4,7 @@ Date: 2025-10-12
 
 ## Kontext
 - Externe Informationsquellen liefern heterogene Formate (RSS, HTML-Scrapes, manuelle Meldungen).
-- Der Leitstand erwartet klar strukturierte Ereignisse, um automatisierte Auswertung und Priorisierung zu ermöglichen.
+- Die Chronik erwartet klar strukturierte Ereignisse, um automatisierte Auswertung und Priorisierung zu ermöglichen.
 - Kurator:innen sollen Einträge ohne tiefes Technikverständnis beisteuern können.
 
 ## Entscheidung
