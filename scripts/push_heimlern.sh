@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # MVP-WORKAROUND:
-# Direkter Push zu heimlern. Zielarchitektur: ingest NUR via leitstand.
+# Direkter Push zu heimlern. Zielarchitektur: ingest NUR via chronik.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
