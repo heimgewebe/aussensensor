@@ -7,7 +7,7 @@ aussensensor kuratiert externe Informationsquellen (Newsfeeds, Wetter, Lagebilde
 
 ## Systemkontext und Zielsetzung
 - **Zielgruppe:** Operator:innen und Analyst:innen, die ein konsolidiertes Lagebild benötigen.
-- **Einordnung:** aussensensor dient als vorgelagerter Kurationspunkt für externe Quellen und beliefert die Chronik über die `/ingest/aussen`-Schnittstelle. Das `leitstand`-Repo ist künftig das UI/Dashboard.
+- **Einordnung:** aussensensor dient als vorgelagerter Kurationspunkt für externe Quellen und beliefert die Chronik über die `/ingest/aussen`-Schnittstelle.
 - **Datenfluss:**
   **MVP (heute)**: aussensensor → direkt **heimlern** **und** → **chronik**  
   **Zielbild**: aussensensor → **nur** chronik `/v1/ingest`; Consumer lesen von dort (Stream/Webhook)

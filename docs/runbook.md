@@ -44,7 +44,6 @@ Dieses Runbook beschreibt den täglichen Ablauf für das Kuratieren und Ausliefe
    ```
    - Token via `CHRONIK_TOKEN` setzen oder Flag `--token` nutzen.
    - Dry-Run prüfen, danach echten Push ausführen.
-   - Hinweis: Das `leitstand`-Repo ist künftig das UI/Dashboard.
 
 ## Änderungsfreeze / Freeze-Prozedur
 Wenn der Feed eingefroren werden muss (z. B. vor einem Incident-Review oder wegen ungeklärter Validierungsfehler):
