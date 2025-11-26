@@ -17,7 +17,6 @@ OUTPUT_FILE=""
 # Konstanten
 SCRIPT_DIR=""
 REPO_ROOT=""
-SCHEMA_PATH=""
 LOCK_FILE=""     # wird aus OUTPUT_FILE abgeleitet
 TMP_LINE_FILE="" # explizit initialisieren
 TMP_FEED_FILE=""
@@ -310,7 +309,6 @@ append_to_feed() {
 main() {
   SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
   REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-  SCHEMA_PATH="$REPO_ROOT/contracts/aussen.event.schema.json"
   # Default output file, can be overwritten by -o flag
   OUTPUT_FILE="$REPO_ROOT/export/feed.jsonl"
 
