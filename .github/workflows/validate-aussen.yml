@@ -1,7 +1,7 @@
 name: validate-aussen-jsonl
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
 jobs:
   validate:
@@ -9,7 +9,7 @@ jobs:
     with:
       jsonl_paths_list: |
         export/*.jsonl
-        fixtures/aussen/*.jsonl
+        tests/fixtures/aussen/*.jsonl
       schema_url: https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/aussen.event.schema.json
       strict: false
       validate_formats: true
