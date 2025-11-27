@@ -1,9 +1,14 @@
+---
 name: wgx-guard
 
 permissions:
   contents: read
 
-on:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+"on":
   pull_request:
     paths:
       - ".wgx/**"
@@ -24,4 +29,6 @@ on:
 jobs:
   guard:
     name: "WGX guard (central)"
+    # TODO: Pin to a stable release tag (e.g., @v1) for improved security.
+    # Using @main can lead to unexpected behavior if the upstream workflow changes.
     uses: heimgewebe/wgx/.github/workflows/wgx-guard.yml@main

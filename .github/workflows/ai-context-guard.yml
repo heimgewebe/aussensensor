@@ -1,7 +1,14 @@
+---
 name: ai-context-guard
+
 permissions:
   contents: read
-on:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+"on":
   pull_request:
     paths:
       - ".ai-context.yml"
@@ -14,6 +21,7 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - name: Ensure AI context exists and is non-empty

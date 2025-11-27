@@ -1,3 +1,4 @@
+---
 name: validate (aussen fixtures)
 
 permissions:
@@ -7,7 +8,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-on:
+"on":
   push:
     paths:
       - 'tests/fixtures/aussen/**'
@@ -22,6 +23,7 @@ jobs:
   discover:
     name: Discover fixture files
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       files: ${{ steps.collect.outputs.files }}
     steps:
