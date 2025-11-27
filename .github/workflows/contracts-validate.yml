@@ -61,14 +61,15 @@ jobs:
             line="${line%%#*}"
             line="${line##+([[:space:]])}"
             line="${line%%+([[:space:]])}"
-            if [[ "$line" =~ ^(-[[:space:]]*)?uses:[[:space:]]*'([^']+)' ]]; then
-              echo "${BASHREMATCH[2]}"; return 0
+            local sq="'"
+            if [[ "$line" =~ ^(-[[:space:]]*)?uses:[[:space:]]*${sq}([^${sq}]+)${sq} ]]; then
+              echo "${BASH_REMATCH[2]}"; return 0
             fi
             if [[ "$line" =~ ^(-[[:space:]]*)?uses:[[:space:]]*\"([^\"]+)\" ]]; then
-              echo "${BASHREMATCH[2]}"; return 0
+              echo "${BASH_REMATCH[2]}"; return 0
             fi
             if [[ "$line" =~ ^(-[[:space:]]*)?uses:[[:space:]]*([^[:space:]#]+) ]]; then
-              echo "${BASHREMATCH[2]}"; return 0
+              echo "${BASH_REMATCH[2]}"; return 0
             fi
             return 1
           }

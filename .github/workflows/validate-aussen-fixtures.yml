@@ -48,7 +48,7 @@ jobs:
   validate:
     name: Validate ${{ matrix.file }}
     needs: discover
-    if: ${{ fromJSON(needs.discover.outputs.files) != null && length(fromJSON(needs.discover.outputs.files)) > 0 }}
+    if: ${{ needs.discover.outputs.files != '[]' }}
     uses: heimgewebe/metarepo/.github/workflows/reusable-validate-jsonl.yml@contracts-v1
     strategy:
       fail-fast: false
