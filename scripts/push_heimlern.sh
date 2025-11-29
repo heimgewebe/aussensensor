@@ -73,14 +73,7 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   esac
-
 done
-
-if [[ $# -gt 0 ]]; then
-  echo "Zu viele Argumente: $*" >&2
-  print_usage
-  exit 1
-fi
 
 FILE="${FILE:-$DEFAULT_FILE}"
 

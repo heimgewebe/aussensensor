@@ -1,6 +1,7 @@
+---
 name: PR Heimgewebe commands
 
-on:
+"on":
   issue_comment:
     types: [created]
 
