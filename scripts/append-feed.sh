@@ -233,12 +233,20 @@ append_to_feed() {
 
   # Lokales Cleanup, falls vor dem mv abgebrochen wird
   TMP_FEED_FILE=""
+  TMP_ACL_FILE=""
+  TMP_XATTR_FILE=""
   cleanup_append() {
     if [[ -n "$TMP_LINE_FILE" && -f "$TMP_LINE_FILE" ]]; then
       rm -f -- "$TMP_LINE_FILE"
     fi
     if [[ -n "$TMP_FEED_FILE" && -f "$TMP_FEED_FILE" ]]; then
       rm -f -- "$TMP_FEED_FILE"
+    fi
+    if [[ -n "$TMP_ACL_FILE" && -f "$TMP_ACL_FILE" ]]; then
+      rm -f -- "$TMP_ACL_FILE"
+    fi
+    if [[ -n "$TMP_XATTR_FILE" && -f "$TMP_XATTR_FILE" ]]; then
+      rm -f -- "$TMP_XATTR_FILE"
     fi
   }
   trap cleanup_append EXIT INT TERM

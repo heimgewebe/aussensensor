@@ -11,7 +11,7 @@ file="${1:-}"
   exit 2
 }
 
-tmp="$(mktemp "${file##*/}.XXXX")"
+tmp="$(mktemp "${TMPDIR:-/tmp}/jsonl_compact.${file##*/}.XXXX")"
 trap 'rm -f "$tmp"' EXIT
 
 # Zeilenweise lesen, in kompaktes JSON (-c) konvertieren; invalide Zeilen brechen ab.
