@@ -33,6 +33,7 @@ safe_mktemp() { mktemp "${TMPDIR:-/tmp}/aussen_append.$(uuid).XXXXXX"; }
 cleanup() {
   # Stellt sicher, dass temporäre Dateien bei Skript-Ende gelöscht werden.
   [[ -n "${TMP_LINE_FILE:-}" && -f "$TMP_LINE_FILE" ]] && rm -f -- "$TMP_LINE_FILE"
+  return 0
 }
 trap cleanup EXIT INT TERM
 
