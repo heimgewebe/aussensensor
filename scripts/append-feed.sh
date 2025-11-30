@@ -231,24 +231,20 @@ append_to_feed() {
   TMP_LINE_FILE="$(safe_mktemp)"
   printf '%s\n' "$json_obj" >"$TMP_LINE_FILE"
 
-  # Lokales Cleanup, falls vor dem mv abgebrochen wird
+  # Lokales Cleanup für zusätzliche temporäre Dateien
   TMP_FEED_FILE=""
   TMP_ACL_FILE=""
   TMP_XATTR_FILE=""
-  cleanup_append() {
-    if [[ -n "$TMP_LINE_FILE" && -f "$TMP_LINE_FILE" ]]; then
-      rm -f -- "$TMP_LINE_FILE"
-    fi
-    if [[ -n "$TMP_FEED_FILE" && -f "$TMP_FEED_FILE" ]]; then
-      rm -f -- "$TMP_FEED_FILE"
-    fi
-    if [[ -n "$TMP_ACL_FILE" && -f "$TMP_ACL_FILE" ]]; then
+  cleanup_local_temps() {
+    if [[ -n "${TMP_ACL_FILE:-}" && -f "$TMP_ACL_FILE" ]]; then
       rm -f -- "$TMP_ACL_FILE"
     fi
-    if [[ -n "$TMP_XATTR_FILE" && -f "$TMP_XATTR_FILE" ]]; then
+    if [[ -n "${TMP_XATTR_FILE:-}" && -f "$TMP_XATTR_FILE" ]]; then
       rm -f -- "$TMP_XATTR_FILE"
     fi
-    # Call global cleanup to ensure it's not lost
+  }
+  cleanup_append() {
+    cleanup_local_temps
     cleanup
   }
   trap cleanup_append EXIT INT TERM
@@ -311,18 +307,9 @@ append_to_feed() {
     mv -f -- "$TMP_FEED_FILE" "$OUTPUT_FILE"
   fi
 
-  # Erfolgreich: Cleanup lokal ausführen und ursprüngliches Trap wiederherstellen
-  # Nur die lokalen temporären Dateien aufräumen (TMP_LINE_FILE bereits über cleanup_append bereinigt)
-  if [[ -n "$TMP_FEED_FILE" && -f "$TMP_FEED_FILE" ]]; then
-    rm -f -- "$TMP_FEED_FILE"
-  fi
-  if [[ -n "$TMP_ACL_FILE" && -f "$TMP_ACL_FILE" ]]; then
-    rm -f -- "$TMP_ACL_FILE"
-  fi
-  if [[ -n "$TMP_XATTR_FILE" && -f "$TMP_XATTR_FILE" ]]; then
-    rm -f -- "$TMP_XATTR_FILE"
-  fi
-  # Ursprüngliches Trap wiederherstellen
+  # Erfolgreich: Lokale temporäre Dateien aufräumen und ursprüngliches Trap wiederherstellen
+  cleanup_local_temps
+  # Ursprüngliches Trap wiederherstellen (cleanup() für globale Temp-Dateien)
   trap cleanup EXIT INT TERM
 }
 
