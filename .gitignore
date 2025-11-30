@@ -2,6 +2,7 @@ node_modules/
 .DS_Store
 
 # Generated data
-export/
+export/*
+!export/feed.jsonl
 metrics.json
 tools/aussensensor-push/target

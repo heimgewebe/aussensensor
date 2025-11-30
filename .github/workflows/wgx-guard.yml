@@ -29,6 +29,7 @@ concurrency:
 jobs:
   guard:
     name: "WGX guard (central)"
-    # TODO: Pin to a stable release tag (e.g., @v1) for improved security.
-    # Using @main can lead to unexpected behavior if the upstream workflow changes.
+    # Note: Using @main until upstream releases a stable version.
+    # Monitor https://github.com/heimgewebe/wgx/releases for stable tags.
+    # When available, update to a pinned version (e.g., @v1) for improved security.
     uses: heimgewebe/wgx/.github/workflows/wgx-guard.yml@main
