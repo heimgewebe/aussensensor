@@ -27,15 +27,9 @@ USAGE
 
 normalize_bool() {
   case "${1:-}" in
-  1 | true | TRUE | yes | YES | on | ON)
-    printf '1'
-    ;;
-  0 | false | FALSE | no | NO | off | OFF | '')
-    printf '0'
-    ;;
-  *)
-    return 1
-    ;;
+  1 | true | yes | on) printf '1' ;;
+  0 | false | no | off | '') printf '0' ;;
+  *) return 1 ;;
   esac
 }
 
@@ -87,7 +81,7 @@ if [[ "$FILE" != /* ]]; then
 fi
 
 if [[ ! -f "$FILE" ]]; then
-  echo "missing $FILE" >&2
+  echo "Fehler: Datei '$FILE' nicht gefunden." >&2
   exit 1
 fi
 
