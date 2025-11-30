@@ -248,6 +248,8 @@ append_to_feed() {
     if [[ -n "$TMP_XATTR_FILE" && -f "$TMP_XATTR_FILE" ]]; then
       rm -f -- "$TMP_XATTR_FILE"
     fi
+    # Call global cleanup to ensure it's not lost
+    cleanup
   }
   trap cleanup_append EXIT INT TERM
 
@@ -309,9 +311,19 @@ append_to_feed() {
     mv -f -- "$TMP_FEED_FILE" "$OUTPUT_FILE"
   fi
 
-  # Erfolgreich: Cleanup & Trap entfernen
-  cleanup_append
-  trap - EXIT INT TERM
+  # Erfolgreich: Cleanup lokal ausführen und ursprüngliches Trap wiederherstellen
+  # Nur die lokalen temporären Dateien aufräumen (TMP_LINE_FILE bereits über cleanup_append bereinigt)
+  if [[ -n "$TMP_FEED_FILE" && -f "$TMP_FEED_FILE" ]]; then
+    rm -f -- "$TMP_FEED_FILE"
+  fi
+  if [[ -n "$TMP_ACL_FILE" && -f "$TMP_ACL_FILE" ]]; then
+    rm -f -- "$TMP_ACL_FILE"
+  fi
+  if [[ -n "$TMP_XATTR_FILE" && -f "$TMP_XATTR_FILE" ]]; then
+    rm -f -- "$TMP_XATTR_FILE"
+  fi
+  # Ursprüngliches Trap wiederherstellen
+  trap cleanup EXIT INT TERM
 }
 
 main() {

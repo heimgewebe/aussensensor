@@ -46,7 +46,7 @@ jobs:
             fi
             printf '%s\n' "$line" > export/feed.jsonl
             npx -y ajv-cli@5 validate --spec=draft2020 --strict=false \
-              --validate-formats=false \
+              --validate-formats=true \
               -s contracts/aussen.event.schema.json -d export/feed.jsonl
           done < "$tmp_dir/feed.jsonl"
           mv "$tmp_dir/feed.jsonl" export/feed.jsonl
