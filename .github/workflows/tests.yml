@@ -1,0 +1,51 @@
+---
+name: tests
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+"on":
+  push:
+    paths:
+      - "scripts/**"
+      - "tests/**"
+      - "contracts/**"
+      - ".github/workflows/tests.yml"
+  pull_request:
+    paths:
+      - "scripts/**"
+      - "tests/**"
+      - "contracts/**"
+      - ".github/workflows/tests.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install bats-core
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats
+
+      - name: Clone bats libraries
+        run: |
+          git clone --depth 1 https://github.com/bats-core/bats-support.git tests/bats-support
+          git clone --depth 1 https://github.com/bats-core/bats-assert.git tests/bats-assert
+
+      - name: Run tests
+        run: |
+          bats tests/test_append-feed.bats
