@@ -6,10 +6,10 @@ set -euo pipefail
 #   scripts/jsonl-compact.sh export/feed.jsonl
 #
 file="${1:-}"
-[[ -n "$file" && -f "$file" ]] || {
-  echo "usage: $0 <file.jsonl>" >&2
+if [[ -z "$file" || ! -f "$file" ]]; then
+  echo "Fehler: usage: $0 <file.jsonl>" >&2
   exit 2
-}
+fi
 
 tmp="$(mktemp "${TMPDIR:-/tmp}/jsonl_compact.${file##*/}.XXXX")"
 trap 'rm -f "$tmp"' EXIT

@@ -19,7 +19,6 @@ SCRIPT_DIR=""
 REPO_ROOT=""
 LOCK_FILE=""     # wird aus OUTPUT_FILE abgeleitet
 TMP_LINE_FILE="" # explizit initialisieren
-TMP_FEED_FILE=""
 
 have() { command -v "$1" >/dev/null 2>&1; }
 need() {
@@ -33,12 +32,7 @@ safe_mktemp() { mktemp "${TMPDIR:-/tmp}/aussen_append.$(uuid).XXXXXX"; }
 
 cleanup() {
   # Stellt sicher, dass temporäre Dateien bei Skript-Ende gelöscht werden.
-  if [[ -n "${TMP_LINE_FILE:-}" && -f "$TMP_LINE_FILE" ]]; then
-    rm -f -- "$TMP_LINE_FILE"
-  fi
-  if [[ -n "${TMP_FEED_FILE:-}" && -f "$TMP_FEED_FILE" ]]; then
-    rm -f -- "$TMP_FEED_FILE"
-  fi
+  [[ -n "${TMP_LINE_FILE:-}" && -f "$TMP_LINE_FILE" ]] && rm -f -- "$TMP_LINE_FILE"
 }
 trap cleanup EXIT INT TERM
 
@@ -174,8 +168,9 @@ build_tags_json() {
     return
   fi
 
-  printf '%s\n' "${tags_raw[@]}" | jq -R 'select(length > 0)' | jq -s '
-    map(gsub("^\\s+|\\s+$"; ""))
+  printf '%s\n' "${tags_raw[@]}" | jq -Rs '
+    split("\n")
+    | map(gsub("^\\s+|\\s+$"; ""))
     | map(select(length > 0))
     | reduce .[] as $tag ([]; if index($tag) then . else . + [$tag] end)'
 }
@@ -231,24 +226,6 @@ append_to_feed() {
   TMP_LINE_FILE="$(safe_mktemp)"
   printf '%s\n' "$json_obj" >"$TMP_LINE_FILE"
 
-  # Lokales Cleanup für zusätzliche temporäre Dateien
-  TMP_FEED_FILE=""
-  TMP_ACL_FILE=""
-  TMP_XATTR_FILE=""
-  cleanup_local_temps() {
-    if [[ -n "${TMP_ACL_FILE:-}" && -f "$TMP_ACL_FILE" ]]; then
-      rm -f -- "$TMP_ACL_FILE"
-    fi
-    if [[ -n "${TMP_XATTR_FILE:-}" && -f "$TMP_XATTR_FILE" ]]; then
-      rm -f -- "$TMP_XATTR_FILE"
-    fi
-  }
-  cleanup_append() {
-    cleanup_local_temps
-    cleanup
-  }
-  trap cleanup_append EXIT INT TERM
-
   if have flock; then
     # Lock-basiertes, konkurrenzsicheres Anhängen
     exec 9>"$LOCK_FILE"
@@ -257,60 +234,23 @@ append_to_feed() {
       cat "$TMP_LINE_FILE" >>"$OUTPUT_FILE"
       flock -u 9
     else
-      echo "Lock timeout auf $LOCK_FILE" >&2
+      echo "Fehler: Lock timeout auf $LOCK_FILE" >&2
       exit 1
     fi
     exec 9>&-
   else
-    # Fallback ohne flock: atomar ersetzen und Metadaten der Originaldatei übernehmen.
+    # Fallback ohne flock: atomar ersetzen mit Basis-Metadaten
     TMP_FEED_FILE="$(safe_mktemp)"
 
     if [[ -f "$OUTPUT_FILE" ]]; then
-      # Inhalt übernehmen
-      cp -f -- "$OUTPUT_FILE" "$TMP_FEED_FILE"
-      # Basis-Metadaten klonen (Modus/Owner/Gruppe/Zeitstempel)
-      chmod --reference="$OUTPUT_FILE" "$TMP_FEED_FILE" 2>/dev/null || true
-      chown --reference="$OUTPUT_FILE" "$TMP_FEED_FILE" 2>/dev/null || true
-      touch --reference="$OUTPUT_FILE" "$TMP_FEED_FILE" 2>/dev/null || true
-      # SELinux-Kontext (optional)
-      if command -v chcon >/dev/null 2>&1; then
-        chcon --reference="$OUTPUT_FILE" "$TMP_FEED_FILE" 2>/dev/null || true
-      fi
-
-      # ACLs (optional)
-      if command -v getfacl >/dev/null 2>&1 && command -v setfacl >/dev/null 2>&1; then
-        TMP_ACL_FILE="$(safe_mktemp)"
-        getfacl --absolute-names "$OUTPUT_FILE" 2>/dev/null > "$TMP_ACL_FILE"
-        # Replace the file comment to reference the new file
-        sed -i "1s|^# file: .*|# file: $TMP_FEED_FILE|" "$TMP_ACL_FILE"
-        setfacl --restore="$TMP_ACL_FILE" 2>/dev/null || true
-        rm -f -- "$TMP_ACL_FILE"
-      fi
-
-      # xattrs (optional)
-      if command -v getfattr >/dev/null 2>&1 && command -v setfattr >/dev/null 2>&1; then
-        TMP_XATTR_FILE="$(safe_mktemp)"
-        getfattr -d -m - "$OUTPUT_FILE" 2>/dev/null > "$TMP_XATTR_FILE"
-        # Replace or add file path comment as needed
-        if grep -q '^# file: ' "$TMP_XATTR_FILE"; then
-          sed -i "1s|^# file: .*|# file: $TMP_FEED_FILE|" "$TMP_XATTR_FILE"
-        else
-          sed -i "1i# file: $TMP_FEED_FILE" "$TMP_XATTR_FILE"
-        fi
-        setfattr --restore="$TMP_XATTR_FILE" 2>/dev/null || true
-        rm -f -- "$TMP_XATTR_FILE"
-      fi
+      # Inhalt und Basis-Metadaten übernehmen
+      cp -p -- "$OUTPUT_FILE" "$TMP_FEED_FILE"
     fi
 
     # Neue Zeile anhängen und dann atomar ersetzen
     cat "$TMP_LINE_FILE" >>"$TMP_FEED_FILE"
     mv -f -- "$TMP_FEED_FILE" "$OUTPUT_FILE"
   fi
-
-  # Erfolgreich: Lokale temporäre Dateien aufräumen und ursprüngliches Trap wiederherstellen
-  cleanup_local_temps
-  # Ursprüngliches Trap wiederherstellen (cleanup() für globale Temp-Dateien)
-  trap cleanup EXIT INT TERM
 }
 
 main() {
@@ -321,8 +261,6 @@ main() {
 
   need date
   need jq
-  need wc
-  need xargs
 
   parse_args "$@"
   validate_args
