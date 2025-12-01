@@ -13,7 +13,7 @@ struct Args {
     #[arg(long)]
     file: String,
     /// Auth token
-    #[arg(long)]
+    #[arg(long, env = "CHRONIK_TOKEN")]
     token: Option<String>,
     /// Dry run
     #[arg(long)]
