@@ -77,9 +77,9 @@ done
 if command -v aussensensor-push >/dev/null 2>&1; then
   echo "→ Push via aussensensor-push (NDJSON) → $INGEST_URL"
   AUSSENSENSOR_ARGS=("--url" "$INGEST_URL" "--file" "$FILE_PATH")
-  if [[ -n "$AUTH_TOKEN" ]]; then
-    AUSSENSENSOR_ARGS+=("--token" "$AUTH_TOKEN")
-  fi
+  # AUTH_TOKEN wird via CHRONIK_TOKEN Environment-Variable übergeben,
+  # um Token in der Prozessliste (via --token) zu vermeiden.
+  export CHRONIK_TOKEN="${AUTH_TOKEN}"
   if [[ "$DRY_RUN" -eq 1 ]]; then
     AUSSENSENSOR_ARGS+=("--dry-run")
   fi
