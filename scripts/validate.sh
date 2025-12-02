@@ -19,6 +19,18 @@ need() {
   }
 }
 
+# Check if ajv is available globally, otherwise use npx
+get_ajv_cmd() {
+  if command -v ajv >/dev/null 2>&1; then
+    echo "ajv"
+  elif command -v npx >/dev/null 2>&1; then
+    echo "npx -y ajv-cli@5"
+  else
+    echo "Fehlt: ajv (weder global noch via npx verfügbar)" >&2
+    exit 1
+  fi
+}
+
 print_usage() {
   cat <<'USAGE' >&2
 Usage:
@@ -41,7 +53,7 @@ USAGE
 
 # --- Main --------------------------------------------------------------------
 
-need ajv
+AJV_CMD="$(get_ajv_cmd)"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -94,8 +106,8 @@ validate_line() {
   printf '%s\n' "$line" >"$TMP_EVENT_FILE"
 
   local ajv_output
-  local -a ajv_cmd=(
-    ajv validate
+  local -a ajv_cmd_args=(
+    validate
     --spec=draft2020
     --strict="$STRICT"
     --validate-formats="$VALIDATE_FORMATS"
@@ -103,7 +115,7 @@ validate_line() {
     -d "$TMP_EVENT_FILE"
   )
 
-  if ! ajv_output="$("${ajv_cmd[@]}" 2>&1)"; then
+  if ! ajv_output="$($AJV_CMD "${ajv_cmd_args[@]}" 2>&1)"; then
     echo "Fehler: Validierung fehlgeschlagen ($context)." >&2
     printf '%s\n' "$ajv_output" >&2
     exit 1
