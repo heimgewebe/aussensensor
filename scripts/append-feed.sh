@@ -72,14 +72,38 @@ parse_args() {
   url=""
   opt_tags=""
 
-  # Speziell die Option -o vorab verarbeiten, um Testbarkeit zu erleichtern
-  if [[ "${1:-}" == "-o" ]]; then
-    OUTPUT_FILE="$2"
-    shift 2
-  fi
+  # Optionen verarbeiten (getopts)
+  # OPTIND zurücksetzen, falls die Funktion mehrfach aufgerufen wird
+  OPTIND=1
+  while getopts ":ho:t:s:T:S:u:g:" opt; do
+    case "$opt" in
+    h)
+      print_usage
+      exit 0
+      ;;
+    o) OUTPUT_FILE="$OPTARG" ;;
+    t) type="$OPTARG" ;;
+    s) source="$OPTARG" ;;
+    T) title="$OPTARG" ;;
+    S) summary="$OPTARG" ;;
+    u) url="$OPTARG" ;;
+    g) opt_tags="$OPTARG" ;;
+    :)
+      echo "Option -$OPTARG benötigt ein Argument." >&2
+      print_usage
+      exit 1
+      ;;
+    \?)
+      echo "Unbekannte Option: -$OPTARG" >&2
+      print_usage
+      exit 1
+      ;;
+    esac
+  done
+  shift $((OPTIND - 1))
 
-  if [[ "${1:-}" != "-"* && "$#" -ge 5 ]]; then
-    # Positionsmodus
+  # Prüfen, ob Positionsargumente folgen (Mischbetrieb oder reiner Positionsmodus)
+  if [[ "$#" -ge 5 ]]; then
     source="$1"
     type="$2"
     title="$3"
@@ -87,35 +111,6 @@ parse_args() {
     url="$5"
     shift 5
     mapfile -t pos_tags < <(printf '%s\n' "$@")
-  else
-    # Optionsmodus (getopts)
-    # OPTIND zurücksetzen, falls die Funktion mehrfach aufgerufen wird
-    OPTIND=1
-    while getopts ":ho:t:s:T:S:u:g:" opt; do
-      case "$opt" in
-      h)
-        print_usage
-        exit 0
-        ;;
-      o) OUTPUT_FILE="$OPTARG" ;;
-      t) type="$OPTARG" ;;
-      s) source="$OPTARG" ;;
-      T) title="$OPTARG" ;;
-      S) summary="$OPTARG" ;;
-      u) url="$OPTARG" ;;
-      g) opt_tags="$OPTARG" ;;
-      :)
-        echo "Option -$OPTARG benötigt ein Argument." >&2
-        print_usage
-        exit 1
-        ;;
-      \?)
-        echo "Unbekannte Option: -$OPTARG" >&2
-        print_usage
-        exit 1
-        ;;
-      esac
-    done
   fi
 }
 
