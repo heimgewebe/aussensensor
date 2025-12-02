@@ -33,6 +33,7 @@ Architekturentscheidungen, die zu diesem Design führten, sind in den [ADRs](doc
 - POSIX-kompatible Shell (getestet mit `bash`)
 - `jq` ≥ 1.6 für JSON-Verarbeitung
 - `curl` für HTTP-Requests
+- `ajv-cli` (Node.js) für Validierung (`npm i -g ajv-cli@5.0.0`)
 - Zugriff auf die Chronik-Umgebung inkl. gültigem Token
 
 ## Einrichtung
@@ -41,8 +42,9 @@ Architekturentscheidungen, die zu diesem Design führten, sind in den [ADRs](doc
    - `CHRONIK_INGEST_URL`: Basis-URL der Chronik-Ingest-API (z. B. `https://chronik.example/ingest/aussen`).
    - `HEIMLERN_INGEST_URL`: Endpoint der Heimlern-Ingest-API (z. B. `http://localhost:8787/ingest/aussen`).
    - Optional: `CHRONIK_TOKEN` für einen statischen Token (Header `x-auth`).
-3. Sicherstellen, dass `jq`, `curl` sowie (für Tests) `node`/`npx` installiert sind (`sudo apt install jq curl nodejs npm`).
-4. **Optional**: Pre-commit Hooks für lokale Validierung installieren:
+3. Sicherstellen, dass `jq`, `curl` sowie `node`/`npm` installiert sind.
+4. `ajv-cli` installieren: `npm install -g ajv-cli@5.0.0`
+5. **Optional**: Pre-commit Hooks für lokale Validierung installieren:
    ```bash
    pip install pre-commit
    pre-commit install

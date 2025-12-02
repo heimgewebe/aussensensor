@@ -59,7 +59,12 @@ fn main() -> Result<()> {
         .send()
         .with_context(|| format!("POST {}", &args.url))?;
     if !resp.status().is_success() {
-        bail!("ingest failed: {}", resp.status());
+        let status = resp.status();
+        let body = resp
+            .text()
+            .unwrap_or_else(|err| format!("<Fehler beim Lesen des Antwortbodys: {err}>"));
+
+        bail!("ingest failed: {status} - response body: {body}");
     }
     println!("OK: {} akzeptiert", args.url);
     Ok(())

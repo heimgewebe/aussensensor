@@ -41,7 +41,7 @@ USAGE
 
 # --- Main --------------------------------------------------------------------
 
-need npx
+need ajv
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -95,7 +95,7 @@ validate_line() {
 
   local ajv_output
   local -a ajv_cmd=(
-    npx -y ajv-cli@5.0.0 validate
+    ajv validate
     --spec=draft2020
     --strict="$STRICT"
     --validate-formats="$VALIDATE_FORMATS"

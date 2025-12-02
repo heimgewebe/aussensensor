@@ -102,10 +102,32 @@ else
     head -n5 "$FILE_PATH" >&2 || true
     exit 0
   fi
-  CURL_ARGS=("-fsS" "-H" "content-type: $CONTENT_TYPE" "--data-binary" "@$FILE_PATH")
+  CURL_ARGS=("-sS" "-H" "content-type: $CONTENT_TYPE" "--data-binary" "@$FILE_PATH")
   if [[ -n "$AUTH_TOKEN" ]]; then
     CURL_ARGS+=("-H" "x-auth: $AUTH_TOKEN")
   fi
-  curl "${CURL_ARGS[@]}" "$INGEST_URL"
+  tmp_body="$(mktemp "${TMPDIR:-/tmp}/aussensensor_push.XXXX")"
+  trap 'rm -f "$tmp_body"' EXIT
+
+  # Technische Fehler (DNS, TLS, Verbindungsfehler, etc.)
+  http_code="$(curl "${CURL_ARGS[@]}" -w "%{http_code}" -o "$tmp_body" "$INGEST_URL")" || {
+    echo "Fehler: HTTP Request zu '$INGEST_URL' ist fehlgeschlagen." >&2
+    echo "--- Antwort (falls vorhanden) ---" >&2
+    sed 's/^/  /' "$tmp_body" >&2 || true
+    echo "--------------------------------" >&2
+    exit 1
+  }
+
+  # HTTP-Fehlercodes explizit behandeln
+  if [[ "$http_code" -ge 400 ]]; then
+    echo "Fehler: Server meldet HTTP $http_code für '$INGEST_URL'." >&2
+    echo "--- Antwort des Servers ---" >&2
+    sed 's/^/  /' "$tmp_body" >&2 || true
+    echo "---------------------------" >&2
+    exit 1
+  fi
+
+  # Erfolgsfall: Body an stdout, damit vorhandene Aufrufer weiterarbeiten können
+  cat "$tmp_body"
   echo
 fi
