@@ -3,6 +3,14 @@
 # Standard-Ingest erfolgt via chronik (/v1/ingest).
 set -euo pipefail
 
+have() { command -v "$1" >/dev/null 2>&1; }
+need() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "Fehlt: $1" >&2
+    exit 1
+  fi
+}
+
 print_usage() {
   cat <<'USAGE' >&2
 Usage: scripts/push_chronik.sh [options]
@@ -74,7 +82,8 @@ done
   echo "Fehler: Datei '$FILE_PATH' nicht gefunden." >&2
   exit 1
 }
-if command -v aussensensor-push >/dev/null 2>&1; then
+
+if have aussensensor-push; then
   echo "→ Push via aussensensor-push (NDJSON) → $INGEST_URL"
   AUSSENSENSOR_ARGS=("--url" "$INGEST_URL" "--file" "$FILE_PATH")
   # AUTH_TOKEN wird via CHRONIK_TOKEN Environment-Variable übergeben,
@@ -85,10 +94,7 @@ if command -v aussensensor-push >/dev/null 2>&1; then
   fi
   aussensensor-push "${AUSSENSENSOR_ARGS[@]}"
 else
-  command -v curl >/dev/null 2>&1 || {
-    echo "Fehlt: curl" >&2
-    exit 1
-  }
+  need curl
   echo "→ Push via curl (Fallback) → $INGEST_URL"
   if [[ "$DRY_RUN" -eq 1 ]]; then
     echo "[DRY-RUN] Würde $(grep -c . "$FILE_PATH") Ereignis(se) an '$INGEST_URL' übertragen." >&2
