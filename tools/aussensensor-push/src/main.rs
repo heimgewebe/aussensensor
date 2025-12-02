@@ -12,9 +12,6 @@ struct Args {
     /// Path to .jsonl (NDJSON)
     #[arg(long)]
     file: String,
-    /// Auth token
-    #[arg(long, env = "CHRONIK_TOKEN")]
-    token: Option<String>,
     /// Dry run
     #[arg(long)]
     dry_run: bool,
@@ -37,10 +34,14 @@ fn main() -> Result<()> {
         println!("Warnung: keine Events in {}", &args.file);
         return Ok(());
     }
+
+    // Token aus Environment lesen
+    let token = std::env::var("CHRONIK_TOKEN").ok();
+
     if args.dry_run {
         println!("[DRY-RUN] Würde {} Events an {} senden.", lines.len(), &args.url);
-        if let Some(token) = &args.token {
-            println!("[DRY-RUN] Token: gesetzt ({} Zeichen).", token.len());
+        if let Some(t) = &token {
+            println!("[DRY-RUN] Token: gesetzt ({} Zeichen).", t.len());
         } else {
             println!("[DRY-RUN] Token: nicht gesetzt.");
         }
@@ -51,8 +52,8 @@ fn main() -> Result<()> {
     let mut req = client
         .post(&args.url)
         .header(reqwest::header::CONTENT_TYPE, "application/x-ndjson");
-    if let Some(token) = &args.token {
-        req = req.header("x-auth", token);
+    if let Some(t) = &token {
+        req = req.header("x-auth", t);
     }
     let resp = req
         .body(body)
