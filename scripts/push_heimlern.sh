@@ -9,6 +9,13 @@ DEFAULT_FILE="$REPO_ROOT/export/feed.jsonl"
 CONTENT_TYPE="${CONTENT_TYPE:-application/x-ndjson}"
 DRY_RUN="${DRY_RUN:-0}"
 
+need() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "Fehlt: $1" >&2
+    exit 1
+  }
+}
+
 print_usage() {
   cat <<USAGE >&2
 Usage: scripts/push_heimlern.sh [options] [feed.jsonl]
@@ -99,16 +106,29 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   exit 0
 fi
 
-command -v curl >/dev/null 2>&1 || {
-  echo "Fehlt: curl" >&2
-  exit 1
-}
+need curl
 
 : "${HEIMLERN_INGEST_URL:?set HEIMLERN_INGEST_URL}"
 
-curl --fail --silent --show-error --request POST "$HEIMLERN_INGEST_URL" \
-  --header "Content-Type: $CONTENT_TYPE" \
-  --data-binary @"$FILE" \
-  --write-out '\nHTTP:%{http_code}\n'
+# Robust HTTP request implementation
+tmp_body="$(mktemp "${TMPDIR:-/tmp}/heimlern_push.XXXX")"
+cleanup() { rm -f "$tmp_body"; }
+trap cleanup EXIT INT TERM
 
-echo "✅ Push erfolgreich"
+http_code="$(curl -sS -o "$tmp_body" -w "%{http_code}" \
+  -H "Content-Type: $CONTENT_TYPE" \
+  --data-binary @"$FILE" \
+  "$HEIMLERN_INGEST_URL")" || {
+    echo "Fehler: HTTP Request zu '$HEIMLERN_INGEST_URL' ist fehlgeschlagen." >&2
+    exit 1
+}
+
+if [[ "$http_code" -ge 400 ]]; then
+  echo "Fehler: Server meldet HTTP $http_code für '$HEIMLERN_INGEST_URL'." >&2
+  echo "--- Antwort des Servers ---" >&2
+  sed 's/^/  /' "$tmp_body" >&2 || true
+  echo "---------------------------" >&2
+  exit 1
+fi
+
+echo "✅ Push erfolgreich (HTTP $http_code)"
