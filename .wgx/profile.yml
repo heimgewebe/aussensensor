@@ -1,0 +1,23 @@
+wgx:
+  apiVersion: v1
+  requiredWgx: "^2.0.0"
+  repoKind: generic
+
+  tooling:
+    shell:
+      default: bash
+
+  tasks:
+    up: "echo 'No setup required'"
+    # Guard: Linting und Schema-Validierung
+    guard: |
+      bash -n $(git ls-files '*.sh' '*.bash')
+      ./scripts/validate.sh export/feed.jsonl
+    # Test: Unit tests via bats
+    test: "./tests/run.sh"
+    # Build: Rust binary bauen (optional, aber gut für CI)
+    build: "cd tools/aussensensor-push && cargo build --release"
+    # Smoke: Einfacher Dry-Run Push
+    smoke: "./scripts/push_chronik.sh --dry-run"
+    # Metrics: Snapshot Skript
+    metrics: "scripts/wgx-metrics-snapshot.sh --output metrics.json"
