@@ -83,8 +83,16 @@ done
   exit 1
 }
 
+# Bestimme den Pfad zum aussensensor-push Binary
+PUSH_BIN=""
 if have aussensensor-push; then
-  echo "→ Push via aussensensor-push (NDJSON) → $INGEST_URL"
+  PUSH_BIN="aussensensor-push"
+elif [[ -x "$REPO_ROOT/tools/aussensensor-push/target/release/aussensensor-push" ]]; then
+  PUSH_BIN="$REPO_ROOT/tools/aussensensor-push/target/release/aussensensor-push"
+fi
+
+if [[ -n "$PUSH_BIN" ]]; then
+  echo "→ Push via $PUSH_BIN (NDJSON) → $INGEST_URL"
   AUSSENSENSOR_ARGS=("--url" "$INGEST_URL" "--file" "$FILE_PATH")
   # AUTH_TOKEN wird via CHRONIK_TOKEN Environment-Variable übergeben,
   # um Token in der Prozessliste (via --token) zu vermeiden.
@@ -92,7 +100,7 @@ if have aussensensor-push; then
   if [[ "$DRY_RUN" -eq 1 ]]; then
     AUSSENSENSOR_ARGS+=("--dry-run")
   fi
-  aussensensor-push "${AUSSENSENSOR_ARGS[@]}"
+  "$PUSH_BIN" "${AUSSENSENSOR_ARGS[@]}"
 else
   need curl
   echo "→ Push via curl (Fallback) → $INGEST_URL"
