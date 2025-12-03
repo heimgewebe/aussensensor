@@ -113,7 +113,8 @@ else
     CURL_ARGS+=("-H" "x-auth: $AUTH_TOKEN")
   fi
   tmp_body="$(mktemp "${TMPDIR:-/tmp}/aussensensor_push.XXXX")"
-  trap 'rm -f "$tmp_body"' EXIT
+  cleanup() { rm -f "$tmp_body"; }
+  trap cleanup EXIT
 
   # Technische Fehler (DNS, TLS, Verbindungsfehler, etc.)
   http_code="$(curl "${CURL_ARGS[@]}" -w "%{http_code}" -o "$tmp_body" "$INGEST_URL")" || {
