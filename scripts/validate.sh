@@ -4,8 +4,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SCHEMA_PATH="$REPO_ROOT/contracts/aussen.event.schema.json"
-STRICT="${STRICT:-false}"
-VALIDATE_FORMATS="${VALIDATE_FORMATS:-false}"
 REQUIRE_NONEMPTY="${REQUIRE_NONEMPTY:-0}"
 SCHEMA_FILE="${SCHEMA_FILE:-$SCHEMA_PATH}"
 TMP_EVENT_FILE="$(mktemp "${TMPDIR:-/tmp}/aussen_event.validate.XXXXXX.json")"
@@ -19,17 +17,7 @@ need() {
   }
 }
 
-# Check if ajv is available globally, otherwise use npx
-get_ajv_cmd() {
-  if command -v ajv >/dev/null 2>&1; then
-    echo "ajv"
-  elif command -v npx >/dev/null 2>&1; then
-    echo "npx -y ajv-cli@5"
-  else
-    echo "Fehlt: ajv (weder global noch via npx verfügbar)" >&2
-    exit 1
-  fi
-}
+need jq
 
 print_usage() {
   cat <<'USAGE' >&2
@@ -41,19 +29,14 @@ Usage:
     Validiert das JSON-Objekt von stdin.
 
 Umgebungsvariablen:
-  STRICT=true             Aktiviert strikte Validierung von ajv.
-  VALIDATE_FORMATS=true   Prüft Format-Validierungen.
   REQUIRE_NONEMPTY=1      Fehler bei leeren Dateien oder leerem stdin.
 
-Beispiele:
-  STRICT=true VALIDATE_FORMATS=true \
-    ./scripts/validate.sh -s contracts/aussen.event.schema.json export/feed.jsonl
+Beispiel:
+  ./scripts/validate.sh -s contracts/aussen.event.schema.json export/feed.jsonl
 USAGE
 }
 
 # --- Main --------------------------------------------------------------------
-
-AJV_CMD="$(get_ajv_cmd)"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -96,6 +79,11 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
+REQUIRED_FIELDS=$(jq -cr '.required' "$SCHEMA_FILE")
+ALLOWED_FIELDS=$(jq -cr '.properties | keys' "$SCHEMA_FILE")
+TYPE_ENUM=$(jq -cr '.properties.type.enum' "$SCHEMA_FILE")
+SUMMARY_MAX=$(jq -cr '.properties.summary.maxLength // 500' "$SCHEMA_FILE")
+
 validate_line() {
   local line="$1"
   local context="${2:-stdin}"
@@ -105,19 +93,28 @@ validate_line() {
 
   printf '%s\n' "$line" >"$TMP_EVENT_FILE"
 
-  local ajv_output
-  local -a ajv_cmd_args=(
-    validate
-    --spec=draft2020
-    --strict="$STRICT"
-    --validate-formats="$VALIDATE_FORMATS"
-    -s "$SCHEMA_FILE"
-    -d "$TMP_EVENT_FILE"
-  )
+  local jq_filter
+  jq_filter='.
+    as $obj
+    | ($obj | type == "object")
+    # alle required-Felder müssen als Strings vorhanden sein
+    and (($required // []) | all(.[]; ($obj[.] // null | type == "string")))
+    # type muss String sein und innerhalb des enum liegen
+    and (($obj.type // null) as $t | ($t | type == "string") and (($type_enum // []) | index($t) != null))
+    and (($obj.summary? // "") | (type == "string" and (length <= $summary_max)))
+    and (($obj.url? // "") | type == "string")
+    and (($obj.tags? // []) | (type == "array" and all(.[]; type == "string")))
+    and ((($obj | keys) - ($allowed // [])) | length == 0)'
 
-  if ! ajv_output="$($AJV_CMD "${ajv_cmd_args[@]}" 2>&1)"; then
+  if ! jq -e \
+    --argjson required "${REQUIRED_FIELDS:-[]}" \
+    --argjson allowed "${ALLOWED_FIELDS:-[]}" \
+    --argjson type_enum "${TYPE_ENUM:-[]}" \
+    --argjson summary_max "${SUMMARY_MAX:-500}" \
+    "$jq_filter" "$TMP_EVENT_FILE" >/dev/null; then
     echo "Fehler: Validierung fehlgeschlagen ($context)." >&2
-    printf '%s\n' "$ajv_output" >&2
+    echo "JSON-Objekt:" >&2
+    cat "$TMP_EVENT_FILE" >&2
     exit 1
   fi
 }
