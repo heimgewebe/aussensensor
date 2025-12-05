@@ -94,17 +94,17 @@ validate_line() {
   printf '%s\n' "$line" >"$TMP_EVENT_FILE"
 
   local jq_filter
-  jq_filter='.
-    as $obj
-    | ($obj | type == "object")
+  jq_filter=".
+    as \$obj
+    | (\$obj | type == \"object\")
     # alle required-Felder müssen als Strings vorhanden sein
-    and (($required // []) | all(.[]; ($obj[.] // null | type == "string")))
+    and ((\$required // []) | all(.[]; (\$obj[.] // null | type == \"string\")))
     # type muss String sein und innerhalb des enum liegen
-    and (($obj.type // null) as $t | ($t | type == "string") and (($type_enum // []) | index($t) != null))
-    and (($obj.summary? // "") | (type == "string" and (length <= $summary_max)))
-    and (($obj.url? // "") | type == "string")
-    and (($obj.tags? // []) | (type == "array" and all(.[]; type == "string")))
-    and ((($obj | keys) - ($allowed // [])) | length == 0)'
+    and ((\$obj.type // null) as \$t | (\$t | type == \"string\") and ((\$type_enum // []) | index(\$t) != null))
+    and ((\$obj.summary? // \"\") | (type == \"string\" and (length <= \$summary_max)))
+    and ((\$obj.url? // \"\") | type == \"string\")
+    and ((\$obj.tags? // []) | (type == \"array\" and all(.[]; type == \"string\")))
+    and (((\$obj | keys) - (\$allowed // [])) | length == 0)"
 
   if ! jq -e \
     --argjson required "${REQUIRED_FIELDS:-[]}" \
