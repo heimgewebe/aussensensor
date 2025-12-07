@@ -154,30 +154,14 @@ parse_args() {
 
   # Handle positional arguments if flags were not sufficient or strictly positional mode
   if [[ ${#positional[@]} -gt 0 ]]; then
-      # If we have 5+ positional args, assume full positional mode for missing fields
-      if [[ ${#positional[@]} -ge 5 ]]; then
-          [[ -z "$source_arg" ]] && source="${positional[0]}"
-          [[ -z "$type_arg" ]] && type="${positional[1]}"
-          [[ -z "$title_arg" ]] && title="${positional[2]}"
-          [[ -z "$summary_arg" ]] && summary="${positional[3]}"
-          [[ -z "$url_arg" ]] && url="${positional[4]}"
-
-          # Any remaining positional args are tags
-          if [[ ${#positional[@]} -gt 5 ]]; then
-              tags_array+=("${positional[@]:5}")
-          fi
-      else
-          # Fallback: Treat as error or partial fill?
-          # Existing tests suggest we either use full positional or flags.
-          # If we have some positional but less than 5, and no flags, it's likely an error.
-          # But if we have flags, maybe we ignore positional?
-          # Let's assume if flags are used, positional args might be tags if provided?
-          # Or simply: if source is still empty, try to fill from positional?
-          # For safety/legacy compatibility:
-          if [[ -z "$source_arg" && -z "$title_arg" ]]; then
-               # Likely incomplete positional usage
-               :
-          fi
+      [[ -z "$source_arg"  && ${#positional[@]} -ge 1 ]] && source="${positional[0]}"
+      [[ -z "$type_arg"    && ${#positional[@]} -ge 2 ]] && type="${positional[1]}"
+      [[ -z "$title_arg"   && ${#positional[@]} -ge 3 ]] && title="${positional[2]}"
+      [[ -z "$summary_arg" && ${#positional[@]} -ge 4 ]] && summary="${positional[3]}"
+      [[ -z "$url_arg"     && ${#positional[@]} -ge 5 ]] && url="${positional[4]}"
+      # Tags (falls vorhanden)
+      if [[ ${#positional[@]} -gt 5 ]]; then
+          tags_array+=("${positional[@]:5}")
       fi
   fi
 
