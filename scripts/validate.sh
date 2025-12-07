@@ -7,7 +7,11 @@ SCHEMA_PATH="$REPO_ROOT/contracts/aussen.event.schema.json"
 REQUIRE_NONEMPTY="${REQUIRE_NONEMPTY:-0}"
 SCHEMA_FILE="${SCHEMA_FILE:-$SCHEMA_PATH}"
 TMP_EVENT_FILE="$(mktemp "${TMPDIR:-/tmp}/aussen_event.validate.XXXXXX.json")"
-cleanup() { rm -f "$TMP_EVENT_FILE"; }
+TMP_SCHEMA_FILE="$(mktemp "${TMPDIR:-/tmp}/aussen_event.schema.XXXXXX.json")"
+
+cleanup() {
+  rm -f "$TMP_EVENT_FILE" "$TMP_SCHEMA_FILE"
+}
 trap cleanup EXIT INT TERM
 
 need() {
@@ -17,7 +21,8 @@ need() {
   }
 }
 
-need jq
+need ajv
+need sed
 
 print_usage() {
   cat <<'USAGE' >&2
@@ -79,10 +84,11 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-REQUIRED_FIELDS=$(jq -cr '.required' "$SCHEMA_FILE")
-ALLOWED_FIELDS=$(jq -cr '.properties | keys' "$SCHEMA_FILE")
-TYPE_ENUM=$(jq -cr '.properties.type.enum' "$SCHEMA_FILE")
-SUMMARY_MAX=$(jq -cr '.properties.summary.maxLength // 500' "$SCHEMA_FILE")
+# Prepare patched schema for ajv
+# ajv (v5 via ajv-cli) defaults to draft-07 but can be picky about $schema URL or format.
+# Remote uses https://json-schema.org/draft/2020-12/schema which ajv might not resolve or support fully with --spec=draft7
+# So we patch it to draft-07 on the fly.
+sed 's|https://json-schema.org/draft/2020-12/schema|http://json-schema.org/draft-07/schema#|' "$SCHEMA_FILE" > "$TMP_SCHEMA_FILE"
 
 validate_line() {
   local line="$1"
@@ -91,31 +97,16 @@ validate_line() {
   # Leere Zeilen ignorieren
   [[ -z "${line// /}" ]] && return 0
 
+  # Write line to temp file with trailing newline
   printf '%s\n' "$line" >"$TMP_EVENT_FILE"
 
-  local jq_filter
-  jq_filter=".
-    as \$obj
-    | (\$obj | type == \"object\")
-    # alle required-Felder müssen als Strings vorhanden sein
-    and ((\$required // []) | all(.[]; (\$obj[.] // null | type == \"string\")))
-    # type muss String sein und innerhalb des enum liegen
-    and ((\$obj.type // null) as \$t | (\$t | type == \"string\") and ((\$type_enum // []) | index(\$t) != null))
-    and ((\$obj.summary? // \"\") | (type == \"string\" and (length <= \$summary_max)))
-    and ((\$obj.url? // \"\") | type == \"string\")
-    and ((\$obj.tags? // []) | (type == \"array\" and all(.[]; type == \"string\")))
-    and (((\$obj | keys) - (\$allowed // [])) | length == 0)"
-
-  if ! jq -e \
-    --argjson required "${REQUIRED_FIELDS:-[]}" \
-    --argjson allowed "${ALLOWED_FIELDS:-[]}" \
-    --argjson type_enum "${TYPE_ENUM:-[]}" \
-    --argjson summary_max "${SUMMARY_MAX:-500}" \
-    "$jq_filter" "$TMP_EVENT_FILE" >/dev/null; then
-    echo "Fehler: Validierung fehlgeschlagen ($context)." >&2
-    echo "JSON-Objekt:" >&2
-    cat "$TMP_EVENT_FILE" >&2
-    exit 1
+  if ! ajv validate -s "$TMP_SCHEMA_FILE" -d "$TMP_EVENT_FILE" --spec=draft7 --strict=false -c ajv-formats >/dev/null; then
+          echo "Fehler: Validierung fehlgeschlagen ($context)." >&2
+          echo "JSON-Objekt:" >&2
+          cat "$TMP_EVENT_FILE" >&2
+          echo "Details:" >&2
+          ajv validate -s "$TMP_SCHEMA_FILE" -d "$TMP_EVENT_FILE" --spec=draft7 --strict=false -c ajv-formats --errors=text
+          return 1
   fi
 }
 
@@ -133,7 +124,9 @@ if [[ ${#FILES_TO_CHECK[@]} -gt 0 ]]; then
     while IFS= read -r line || [ -n "$line" ]; do
       line_num=$((line_num + 1))
       [[ -z "${line// /}" ]] || seen=1
-      validate_line "$line" "Zeile $line_num in '$FILE_TO_CHECK'"
+      if ! validate_line "$line" "Zeile $line_num in '$FILE_TO_CHECK'"; then
+          status=1
+      fi
     done <"$FILE_TO_CHECK"
 
     if [[ $seen -eq 0 ]]; then
@@ -143,7 +136,7 @@ if [[ ${#FILES_TO_CHECK[@]} -gt 0 ]]; then
       else
         echo "⚠️  Keine Ereignisse zur Validierung in '$FILE_TO_CHECK'" >&2
       fi
-    else
+    elif [[ $status -eq 0 ]]; then
       echo "OK: Alle Zeilen in '$FILE_TO_CHECK' sind valide."
     fi
   done
@@ -153,10 +146,13 @@ elif [[ ${#FILES_TO_CHECK[@]} -eq 0 && ! -t 0 ]]; then
   # Stdin-Modus
   line_num=0
   seen=0
+  status=0
   while IFS= read -r line || [ -n "$line" ]; do
     line_num=$((line_num + 1))
     [[ -z "${line// /}" ]] || seen=1
-    validate_line "$line" "stdin (Zeile $line_num)"
+    if ! validate_line "$line" "stdin (Zeile $line_num)"; then
+        status=1
+    fi
   done
 
   if [[ $seen -eq 0 ]]; then
@@ -166,9 +162,10 @@ elif [[ ${#FILES_TO_CHECK[@]} -eq 0 && ! -t 0 ]]; then
     else
       echo "⚠️  Keine Daten auf stdin erhalten." >&2
     fi
-  else
+  elif [[ $status -eq 0 ]]; then
     echo "OK: Stdin-Daten sind valide."
   fi
+  exit $status
 else
   print_usage
   exit 1

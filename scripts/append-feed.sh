@@ -131,20 +131,13 @@ validate_args() {
     exit 1
   fi
 
-  case "$type" in
-  news | sensor | project | alert) ;;
-  *)
-    echo "Fehler: type muss einer von {news|sensor|project|alert} sein." >&2
-    exit 1
-    ;;
-  esac
-
-  # Summary-Länge (max 500) – Bash zählt UTF-8-Zeichen korrekt bei passender Locale
+  # type validation removed as remote schema allows any string
+  # Summary-Länge (max 2000) – Bash zählt UTF-8-Zeichen korrekt bei passender Locale
   local summary_len
   summary="${summary:-""}"
   summary_len=${#summary}
-  if ((summary_len > 500)); then
-    echo "Fehler: summary darf höchstens 500 Zeichen umfassen (aktuell $summary_len)." >&2
+  if ((summary_len > 2000)); then
+    echo "Fehler: summary darf höchstens 2000 Zeichen umfassen (aktuell $summary_len)." >&2
     exit 1
   fi
 }

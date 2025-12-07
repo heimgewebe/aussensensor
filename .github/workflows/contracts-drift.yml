@@ -1,0 +1,42 @@
+name: contracts-drift
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  drift-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check aussen.event.schema.json against metarepo
+        run: |
+          set -euo pipefail
+
+          local_path="contracts/aussen.event.schema.json"
+
+          if [[ ! -f "$local_path" ]]; then
+            echo "contracts/aussen.event.schema.json existiert lokal nicht – kein Drift zu prüfen."
+            exit 0
+          fi
+
+          tmp="$(mktemp)"
+          curl -fsSL \
+            "https://raw.githubusercontent.com/heimgewebe/metarepo/main/contracts/aussen.event.schema.json" \
+            >"$tmp"
+
+          if ! diff -u "$tmp" "$local_path"; then
+            echo "::error ::Local contracts/aussen.event.schema.json drifts from metarepo/contracts/aussen.event.schema.json"
+            exit 1
+          fi
+
+          echo "contracts/aussen.event.schema.json ist in Sync mit dem metarepo."
