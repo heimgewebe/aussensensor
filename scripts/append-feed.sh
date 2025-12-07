@@ -159,16 +159,20 @@ parse_args() {
       [[ -z "$title_arg" && ${#positional[@]} -ge 3 ]] && title="${positional[2]}"
       [[ -z "$summary_arg" && ${#positional[@]} -ge 4 ]] && summary="${positional[3]}"
       [[ -z "$url_arg" && ${#positional[@]} -ge 5 ]] && url="${positional[4]}"
-      # Verbleibende Argumente sind Tags
+      # Verbleibende Argumente sind Tags (ohne leere/whitespace Tags)
       if [[ ${#positional[@]} -gt 5 ]]; then
-          tags_array+=("${positional[@]:5}")
+          for tag in "${positional[@]:5}"; do
+              [[ -n "${tag// /}" ]] && tags_array+=("$tag")
+          done
       fi
   fi
 
   # Merge tags from -g/--tags
   if [[ -n "$tags_raw" ]]; then
       IFS=',' read -r -a extra_tags <<< "$tags_raw"
-      tags_array+=("${extra_tags[@]}")
+      for tag in "${extra_tags[@]}"; do
+          [[ -n "${tag// /}" ]] && tags_array+=("$tag")
+      done
   fi
 
   # Deduplicate tags
