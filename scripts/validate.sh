@@ -9,7 +9,6 @@ SCHEMA_FILE="${SCHEMA_FILE:-$SCHEMA_PATH}"
 TMP_EVENT_FILE="$(mktemp "${TMPDIR:-/tmp}/aussen_event.validate.XXXXXX.json")"
 TMP_SCHEMA_FILE="$(mktemp "${TMPDIR:-/tmp}/aussen_event.schema.XXXXXX.json")"
 
-# shellcheck disable=SC2317  # cleanup is called via trap
 cleanup() {
   rm -f "$TMP_EVENT_FILE" "$TMP_SCHEMA_FILE"
 }
@@ -17,7 +16,7 @@ trap cleanup EXIT INT TERM
 
 need() {
   command -v "$1" >/dev/null 2>&1 || {
-    echo "Fehler: '$1' wird benötigt, ist aber nicht im PATH." >&2
+    echo "Fehlt: '$1' wird benötigt, ist aber nicht im PATH." >&2
     if [[ "$1" == "ajv" ]]; then
       echo "Hinweis: Installiere ajv-cli z. B. mit:" >&2
       echo "  npm install -g ajv-cli ajv-formats" >&2
@@ -90,10 +89,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Prepare patched schema for ajv
-# ajv-cli (v5) has limited 2020-12 support. We patch $schema to draft-07 on-the-fly
-# to allow validation while keeping the source file in sync with metarepo (2020-12).
-# This works because our schema doesn't use 2020-12-exclusive features.
-# If metarepo adds 2020-12-specific features later, consider upgrading to a newer ajv version.
+# ajv (v5 via ajv-cli) defaults to draft-07 but can be picky about $schema URL or format.
+# Remote uses https://json-schema.org/draft/2020-12/schema which ajv might not resolve or support fully with --spec=draft7.
+# We patch it to draft-07 on the fly to allow local validation while keeping the source of truth (contracts/) in sync with remote.
+# Note: This implies we validate against a Draft-07 compatible subset of the Draft 2020-12 schema.
 sed 's|https://json-schema.org/draft/2020-12/schema|http://json-schema.org/draft-07/schema#|' "$SCHEMA_FILE" > "$TMP_SCHEMA_FILE"
 
 validate_line() {
@@ -117,36 +116,39 @@ validate_line() {
 }
 
 if [[ ${#FILES_TO_CHECK[@]} -gt 0 ]]; then
-  status=0
+  global_exit_code=0
   for FILE_TO_CHECK in "${FILES_TO_CHECK[@]}"; do
     if [[ ! -f "$FILE_TO_CHECK" ]]; then
       echo "Fehlt: $FILE_TO_CHECK" >&2
-      status=1
+      global_exit_code=1
       continue
     fi
 
     line_num=0
     seen=0
+    file_status=0
     while IFS= read -r line || [ -n "$line" ]; do
       line_num=$((line_num + 1))
       [[ -z "${line// /}" ]] || seen=1
       if ! validate_line "$line" "Zeile $line_num in '$FILE_TO_CHECK'"; then
-          status=1
+          file_status=1
+          global_exit_code=1
       fi
     done <"$FILE_TO_CHECK"
 
     if [[ $seen -eq 0 ]]; then
       if [[ "$REQUIRE_NONEMPTY" -eq 1 ]]; then
         echo "❌ Keine Ereignisse zur Validierung in '$FILE_TO_CHECK' (REQUIRE_NONEMPTY=1)" >&2
-        status=1
+        file_status=1
+        global_exit_code=1
       else
         echo "⚠️  Keine Ereignisse zur Validierung in '$FILE_TO_CHECK'" >&2
       fi
-    elif [[ $status -eq 0 ]]; then
+    elif [[ $file_status -eq 0 ]]; then
       echo "OK: Alle Zeilen in '$FILE_TO_CHECK' sind valide."
     fi
   done
-  exit $status
+  exit $global_exit_code
 
 elif [[ ${#FILES_TO_CHECK[@]} -eq 0 && ! -t 0 ]]; then
   # Stdin-Modus
