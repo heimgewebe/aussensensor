@@ -1,16 +1,72 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "aussensensor/weltgewebe event",
+  "$id": "https://schemas.heimgewebe.org/contracts/aussen.event.schema.json",
+  "title": "Aussensensor Event",
+  "x-producers": ["aussensensor", "weltgewebe"],
+  "x-consumers": ["chronik"],
+  "description": "Zentrales Contract-Schema für kuratierte Außensensor-Ereignisse (JSONL: 1 Objekt pro Zeile).",
   "type": "object",
-  "required": ["ts", "type", "source", "title"],
+  "additionalProperties": false,
   "properties": {
-    "ts": { "type": "string", "format": "date-time" },
-    "type": { "type": "string", "enum": ["news", "sensor", "project", "alert"] },
-    "source": { "type": "string" },
-    "title": { "type": "string" },
-    "summary": { "type": "string", "maxLength": 500 },
-    "url": { "type": "string" },
-    "tags": { "type": "array", "items": { "type": "string" } }
+    "id": {
+      "type": "string",
+      "description": "Stabile, optionale Event-ID (z. B. Hash über url+ts)."
+    },
+    "type": {
+      "type": "string",
+      "description": "Kategorie/Typ des Events (frei, aber konsistent halten).",
+      "examples": ["news", "link", "post", "alert", "paper", "release"]
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Kurzbezeichner der Quelle (z. B. rss:heise, hn, mastodon:@user)."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "summary": {
+      "type": "string",
+      "description": "Kurze Zusammenfassung (optional gekürzt).",
+      "maxLength": 2000
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Primärlink zum Inhalt."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "maxLength": 64, "pattern": "^[^\\s].*$" },
+      "uniqueItems": true,
+      "maxItems": 64
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Zeitstempel ISO-8601 (UTC empfohlen)."
+    },
+    "features": {
+      "type": "object",
+      "description": "Beliebige Merkmale für Scoring/Policies.",
+      "additionalProperties": true
+    },
+    "meta": {
+      "type": "object",
+      "description": "Transport-/Adapter-Metadaten (z. B. parser_version).",
+      "additionalProperties": true
+    }
   },
-  "additionalProperties": false
+  "required": ["type", "source"],
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "link" } } },
+      "then": {
+        "properties": { "url": { "type": "string", "format": "uri" } },
+        "required": ["url"]
+      }
+    }
+  ]
 }

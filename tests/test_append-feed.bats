@@ -36,23 +36,17 @@ teardown() {
   assert_success
 }
 
-@test "append-feed.sh fails with invalid type" {
-  run "$SCRIPT_UNDER_TEST" -t invalid-type -s test -T "title"
-  assert_failure
-  assert_output --partial "Fehler: type muss einer von {news|sensor|project|alert} sein."
-}
-
 @test "append-feed.sh fails with summary too long" {
   local long_summary
-  long_summary="$(printf '%501s' | tr ' ' 'a')"
-  run "$SCRIPT_UNDER_TEST" -s test -t news -T "title" -S "$long_summary"
+  long_summary="$(printf '%2001s' | tr ' ' 'a')"
+  run "$SCRIPT_UNDER_TEST" -s test -t news -T "title" -S "$long_summary" -u "http://example.com"
   assert_failure
-  assert_output --partial "Fehler: summary darf höchstens 500 Zeichen umfassen"
+  assert_output --partial "Fehler: summary darf höchstens 2000 Zeichen umfassen"
 }
 
 @test "append-feed.sh handles positional tags" {
   local feed_file="$BATS_TMPDIR/feed.jsonl"
-  run "$SCRIPT_UNDER_TEST" -o "$feed_file" s news "title" "summary" "url" tag1 tag2
+  run "$SCRIPT_UNDER_TEST" -o "$feed_file" s news "title" "summary" "http://example.com/tag-test" tag1 tag2
   assert_success
   run jq -e '.tags | length == 2 and .[0] == "tag1" and .[1] == "tag2"' "$feed_file"
   assert_success
@@ -60,7 +54,7 @@ teardown() {
 
 @test "append-feed.sh handles comma-separated tags" {
   local feed_file="$BATS_TMPDIR/feed.jsonl"
-  run "$SCRIPT_UNDER_TEST" -o "$feed_file" -s s -t news -T "title" -g "tag1,tag2, tag3"
+  run "$SCRIPT_UNDER_TEST" -o "$feed_file" -s s -t news -T "title" -u "http://example.com/tags" -g "tag1,tag2, tag3"
   assert_success
   run jq -e '.tags | length == 3 and .[2] == "tag3"' "$feed_file"
   assert_success
@@ -68,7 +62,7 @@ teardown() {
 
 @test "append-feed.sh deduplicates tags" {
   local feed_file="$BATS_TMPDIR/feed.jsonl"
-  run "$SCRIPT_UNDER_TEST" -o "$feed_file" -s s -t news -T "title" -g "tag1,tag2,tag1"
+  run "$SCRIPT_UNDER_TEST" -o "$feed_file" -s s -t news -T "title" -u "http://example.com/dedup" -g "tag1,tag2,tag1"
   assert_success
   run jq -e '.tags | length == 2' "$feed_file"
   assert_success
