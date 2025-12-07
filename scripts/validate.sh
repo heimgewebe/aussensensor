@@ -86,9 +86,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Prepare patched schema for ajv
-# ajv (v5 via ajv-cli) defaults to draft-07 but can be picky about $schema URL or format.
-# Remote uses https://json-schema.org/draft/2020-12/schema which ajv might not resolve or support fully with --spec=draft7
-# So we patch it to draft-07 on the fly.
+# ajv-cli (v5) has limited 2020-12 support. We patch $schema to draft-07 on-the-fly
+# to allow validation while keeping the source file in sync with metarepo (2020-12).
+# This works because our schema doesn't use 2020-12-exclusive features.
+# If metarepo adds 2020-12-specific features later, consider upgrading to a newer ajv version.
 sed 's|https://json-schema.org/draft/2020-12/schema|http://json-schema.org/draft-07/schema#|' "$SCHEMA_FILE" > "$TMP_SCHEMA_FILE"
 
 validate_line() {
