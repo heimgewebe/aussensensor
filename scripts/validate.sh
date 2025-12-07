@@ -17,7 +17,11 @@ trap cleanup EXIT INT TERM
 
 need() {
   command -v "$1" >/dev/null 2>&1 || {
-    echo "Fehlt: $1" >&2
+    echo "Fehler: '$1' wird benötigt, ist aber nicht im PATH." >&2
+    if [[ "$1" == "ajv" ]]; then
+      echo "Hinweis: Installiere ajv-cli z. B. mit:" >&2
+      echo "  npm install -g ajv-cli ajv-formats" >&2
+    fi
     exit 1
   }
 }
