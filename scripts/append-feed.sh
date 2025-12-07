@@ -44,7 +44,7 @@ Usage:
 
   Optionen:
     -o, --output file    Ausgabe-Datei (NDJSON). Standard: export/feed.jsonl
-    -t, --type type      Ereignistyp (news|sensor|project|alert). Standard: news
+    -t, --type type      Ereignistyp (z. B. news, sensor, project, alert). Standard: news
     -s, --source source  Quelle (z. B. heise). Standard: manual
     -T, --title title    Titel (erforderlich im Optionsmodus)
     -S, --summary text   Kurztext (optional, ≤ 2000 Zeichen)
