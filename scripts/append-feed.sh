@@ -154,12 +154,12 @@ parse_args() {
 
   # Handle positional arguments if flags were not sufficient or strictly positional mode
   if [[ ${#positional[@]} -gt 0 ]]; then
-      [[ -z "$source_arg"  && ${#positional[@]} -ge 1 ]] && source="${positional[0]}"
-      [[ -z "$type_arg"    && ${#positional[@]} -ge 2 ]] && type="${positional[1]}"
-      [[ -z "$title_arg"   && ${#positional[@]} -ge 3 ]] && title="${positional[2]}"
+      [[ -z "$source_arg" && ${#positional[@]} -ge 1 ]] && source="${positional[0]}"
+      [[ -z "$type_arg" && ${#positional[@]} -ge 2 ]] && type="${positional[1]}"
+      [[ -z "$title_arg" && ${#positional[@]} -ge 3 ]] && title="${positional[2]}"
       [[ -z "$summary_arg" && ${#positional[@]} -ge 4 ]] && summary="${positional[3]}"
-      [[ -z "$url_arg"     && ${#positional[@]} -ge 5 ]] && url="${positional[4]}"
-      # Tags (falls vorhanden)
+      [[ -z "$url_arg" && ${#positional[@]} -ge 5 ]] && url="${positional[4]}"
+      # Verbleibende Argumente sind Tags
       if [[ ${#positional[@]} -gt 5 ]]; then
           tags_array+=("${positional[@]:5}")
       fi
