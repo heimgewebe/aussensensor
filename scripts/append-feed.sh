@@ -3,15 +3,12 @@ set -euo pipefail
 
 # --- Globale Variablen und Konstanten --------------------------------------
 
-# Diese Variablen werden von parse_args gesetzt und von anderen Funktionen verwendet.
 source=""
-type=""
+type="news"
 title=""
 summary=""
 url=""
-declare -a pos_tags=()
-opt_tags=""
-# tags_mode entfällt – wir entscheiden allein anhand pos_tags/opt_tags
+declare -a tags_array=()
 OUTPUT_FILE=""
 
 # Konstanten
@@ -44,77 +41,172 @@ print_usage() {
 Usage:
   Positional:
     ./scripts/append-feed.sh <source> <type> <title> <summary> <url> [tags...]
-      source   Menschlich lesbarer Bezeichner (z. B. heise, dwd)
-      type     news|sensor|project|alert
-      title    Titelzeile des Ereignisses
-      summary  Kurzbeschreibung (max. 500 Zeichen)
-      url      Referenz-Link
-      tags     Optionale Liste einzelner Tags (einzelne Tokens, z. B. rss:demo klima)
 
   Optionen:
-    -o file    Ausgabe-Datei (NDJSON). Standard: export/feed.jsonl
-    -t type    Ereignistyp (news|sensor|project|alert). Standard: news
-    -s source  Quelle (z. B. heise). Standard: manual
-    -T title   Titel (erforderlich im Optionsmodus)
-    -S summary Kurztext (optional, ≤ 500 Zeichen)
-    -u url     Referenz-URL (optional)
-    -g tags    Kommagetrennte Tags (z. B. "rss:demo, klima")
-    -h         Hilfe anzeigen
+    -o, --output file    Ausgabe-Datei (NDJSON). Standard: export/feed.jsonl
+    -t, --type type      Ereignistyp (news|sensor|project|alert). Standard: news
+    -s, --source source  Quelle (z. B. heise). Standard: manual
+    -T, --title title    Titel (erforderlich im Optionsmodus)
+    -S, --summary text   Kurztext (optional, ≤ 2000 Zeichen)
+    -u, --url url        Referenz-URL (optional)
+    -g, --tags tags      Kommagetrennte Tags (z. B. "rss:demo, klima")
+    -h, --help           Hilfe anzeigen
 USAGE
 }
 
 parse_args() {
-  # Default-Werte setzen, bevor die Argumente verarbeitet werden.
-  type="news"
-  source="manual"
-  title=""
-  summary=""
-  url=""
-  opt_tags=""
+  # Default-Werte sind oben global definiert
+  local source_arg=""
+  local type_arg=""
+  local title_arg=""
+  local summary_arg=""
+  local url_arg=""
+  local tags_raw=""
+  local output_arg=""
 
-  # Optionen verarbeiten (getopts)
-  # OPTIND zurücksetzen, falls die Funktion mehrfach aufgerufen wird
-  OPTIND=1
-  while getopts ":ho:t:s:T:S:u:g:" opt; do
-    case "$opt" in
-    h)
+  # Flags flag tracking to handle mixed usage if needed,
+  # but typically we either use flags or purely positional.
+  # We'll allow flags to override defaults, and positional args to fill gaps if flags aren't used for them.
+
+  declare -a positional=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    -h | --help)
       print_usage
       exit 0
       ;;
-    o) OUTPUT_FILE="$OPTARG" ;;
-    t) type="$OPTARG" ;;
-    s) source="$OPTARG" ;;
-    T) title="$OPTARG" ;;
-    S) summary="$OPTARG" ;;
-    u) url="$OPTARG" ;;
-    g) opt_tags="$OPTARG" ;;
-    :)
-      echo "Option -$OPTARG benötigt ein Argument." >&2
+    -o | --output)
+      output_arg="$2"
+      shift 2
+      ;;
+    --output=*)
+      output_arg="${1#*=}"
+      shift
+      ;;
+    -t | --type)
+      type_arg="$2"
+      shift 2
+      ;;
+    --type=*)
+      type_arg="${1#*=}"
+      shift
+      ;;
+    -s | --source)
+      source_arg="$2"
+      shift 2
+      ;;
+    --source=*)
+      source_arg="${1#*=}"
+      shift
+      ;;
+    -T | --title)
+      title_arg="$2"
+      shift 2
+      ;;
+    --title=*)
+      title_arg="${1#*=}"
+      shift
+      ;;
+    -S | --summary)
+      summary_arg="$2"
+      shift 2
+      ;;
+    --summary=*)
+      summary_arg="${1#*=}"
+      shift
+      ;;
+    -u | --url)
+      url_arg="$2"
+      shift 2
+      ;;
+    --url=*)
+      url_arg="${1#*=}"
+      shift
+      ;;
+    -g | --tags)
+      tags_raw="$2"
+      shift 2
+      ;;
+    --tags=*)
+      tags_raw="${1#*=}"
+      shift
+      ;;
+    -*)
+      echo "Unbekannte Option: $1" >&2
       print_usage
       exit 1
       ;;
-    \?)
-      echo "Unbekannte Option: -$OPTARG" >&2
-      print_usage
-      exit 1
+    *)
+      positional+=("$1")
+      shift
       ;;
     esac
   done
-  shift $((OPTIND - 1))
 
-  # Prüfen, ob Positionsargumente folgen (Mischbetrieb oder reiner Positionsmodus)
-  if [[ "$#" -ge 5 ]]; then
-    source="$1"
-    type="$2"
-    title="$3"
-    summary="$4"
-    url="$5"
-    shift 5
-    mapfile -t pos_tags < <(printf '%s\n' "$@")
+  # Apply parsed flags
+  [[ -n "$output_arg" ]] && OUTPUT_FILE="$output_arg"
+  [[ -n "$source_arg" ]] && source="$source_arg"
+  [[ -n "$type_arg" ]] && type="$type_arg"
+  [[ -n "$title_arg" ]] && title="$title_arg"
+  [[ -n "$summary_arg" ]] && summary="$summary_arg"
+  [[ -n "$url_arg" ]] && url="$url_arg"
+
+  # Handle positional arguments if flags were not sufficient or strictly positional mode
+  if [[ ${#positional[@]} -gt 0 ]]; then
+      # If we have 5+ positional args, assume full positional mode for missing fields
+      if [[ ${#positional[@]} -ge 5 ]]; then
+          [[ -z "$source_arg" ]] && source="${positional[0]}"
+          [[ -z "$type_arg" ]] && type="${positional[1]}"
+          [[ -z "$title_arg" ]] && title="${positional[2]}"
+          [[ -z "$summary_arg" ]] && summary="${positional[3]}"
+          [[ -z "$url_arg" ]] && url="${positional[4]}"
+
+          # Any remaining positional args are tags
+          if [[ ${#positional[@]} -gt 5 ]]; then
+              tags_array+=("${positional[@]:5}")
+          fi
+      else
+          # Fallback: Treat as error or partial fill?
+          # Existing tests suggest we either use full positional or flags.
+          # If we have some positional but less than 5, and no flags, it's likely an error.
+          # But if we have flags, maybe we ignore positional?
+          # Let's assume if flags are used, positional args might be tags if provided?
+          # Or simply: if source is still empty, try to fill from positional?
+          # For safety/legacy compatibility:
+          if [[ -z "$source_arg" && -z "$title_arg" ]]; then
+               # Likely incomplete positional usage
+               :
+          fi
+      fi
+  fi
+
+  # Merge tags from -g/--tags
+  if [[ -n "$tags_raw" ]]; then
+      IFS=',' read -r -a extra_tags <<< "$tags_raw"
+      tags_array+=("${extra_tags[@]}")
+  fi
+
+  # Deduplicate tags
+  if [[ ${#tags_array[@]} -gt 0 ]]; then
+      declare -A seen
+      declare -a unique_tags=()
+      for tag in "${tags_array[@]}"; do
+          # Trim whitespace
+          tag_trimmed="$(echo "$tag" | xargs)"
+          if [[ -n "$tag_trimmed" && -z "${seen[$tag_trimmed]:-}" ]]; then
+              unique_tags+=("$tag_trimmed")
+              seen["$tag_trimmed"]=1
+          fi
+      done
+      tags_array=("${unique_tags[@]}")
   fi
 }
 
 validate_args() {
+  # Default source to manual if not set (legacy behavior was in parse_args init)
+  [[ -z "$source" ]] && source="manual"
+
   if [[ -z "${source:-}" || -z "${type:-}" || -z "${title:-}" ]]; then
     echo "Fehler: source, type und title dürfen nicht leer sein." >&2
     print_usage
@@ -131,8 +223,7 @@ validate_args() {
     exit 1
   fi
 
-  # type validation removed as remote schema allows any string
-  # Summary-Länge (max 2000) – Bash zählt UTF-8-Zeichen korrekt bei passender Locale
+  # Summary-Länge (max 2000)
   local summary_len
   summary="${summary:-""}"
   summary_len=${#summary}
@@ -142,33 +233,15 @@ validate_args() {
   fi
 }
 
-build_tags_json() {
-  # Tags: bevorzugt opt_tags, sonst pos_tags; immer Liste
-  local -a tags_raw=()
-  if [[ -n "${opt_tags:-}" ]]; then
-    # Kommagetrennte Liste in Array wandeln
-    IFS=',' read -r -a tags_raw <<<"$opt_tags"
-  else
-    tags_raw=("${pos_tags[@]}")
-  fi
-
-  if ((${#tags_raw[@]} == 0)); then
-    echo '[]'
-    return
-  fi
-
-  printf '%s\n' "${tags_raw[@]}" | jq -Rs '
-    split("\n")
-    | map(gsub("^\\s+|\\s+$"; ""))
-    | map(select(length > 0))
-    | reduce .[] as $tag ([]; if index($tag) then . else . + [$tag] end)'
-}
-
 build_json() {
-  local tags_json
-  tags_json=$(build_tags_json)
   local ts
   ts="$(date -Iseconds -u)"
+
+  # Convert tags array to JSON array
+  local tags_json="[]"
+  if [[ ${#tags_array[@]} -gt 0 ]]; then
+      tags_json="$(printf '%s\n' "${tags_array[@]}" | jq -R . | jq -s .)"
+  fi
 
   jq -cn \
     --arg ts "$ts" \
