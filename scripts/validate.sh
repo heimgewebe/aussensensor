@@ -9,7 +9,6 @@ SCHEMA_FILE="${SCHEMA_FILE:-$SCHEMA_PATH}"
 TMP_EVENT_FILE="$(mktemp "${TMPDIR:-/tmp}/aussen_event.validate.XXXXXX.json")"
 TMP_SCHEMA_FILE="$(mktemp "${TMPDIR:-/tmp}/aussen_event.schema.XXXXXX.json")"
 
-# shellcheck disable=SC2317  # cleanup is called via trap
 cleanup() {
   rm -f "$TMP_EVENT_FILE" "$TMP_SCHEMA_FILE"
 }
