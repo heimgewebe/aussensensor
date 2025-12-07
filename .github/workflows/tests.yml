@@ -36,6 +36,10 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install ajv-cli for validation
+        run: |
+          npm install -g ajv-cli ajv-formats
+
       - name: Install bats-core
         run: |
           sudo apt-get update
