@@ -10,7 +10,9 @@ if [ -z "$SCHEMA_FILE" ] || [ -z "$FIXTURES_PATTERN" ]; then
 fi
 
 # Find all JSONL files matching the pattern
-JSONL_FILES=$(find tests/fixtures -name "*.jsonl" -type f)
+# Convert glob pattern to find pattern (e.g., tests/fixtures/**/*.jsonl -> tests/fixtures -name "*.jsonl")
+SEARCH_DIR=$(echo "$FIXTURES_PATTERN" | sed 's|/\*\*.*||')
+JSONL_FILES=$(find "$SEARCH_DIR" -name "*.jsonl" -type f)
 
 if [ -z "$JSONL_FILES" ]; then
   echo "No JSONL files found matching pattern: $FIXTURES_PATTERN"
@@ -38,6 +40,13 @@ for JSONL_FILE in $JSONL_FILES; do
       continue
     fi
     
+    # Validate that the line is valid JSON
+    if ! echo "$line" | jq empty 2>/dev/null; then
+      INVALID_LINES=$((INVALID_LINES + 1))
+      echo "  ❌ Line $LINE_NUM is INVALID: Not valid JSON"
+      continue
+    fi
+    
     # Write the line to a temporary JSON file
     TEMP_JSON="$TEMP_DIR/line_${LINE_NUM}.json"
     echo "$line" > "$TEMP_JSON"
@@ -59,7 +68,7 @@ for JSONL_FILE in $JSONL_FILES; do
         -d "$TEMP_JSON" \
         --spec=draft2020 \
         --errors=text \
-        --strict=false 2>&1 | grep -v "unknown format" || true
+        --strict=false 2>&1 | grep -E "^(error:|.*invalid)" || true
     fi
   done < "$JSONL_FILE"
   
