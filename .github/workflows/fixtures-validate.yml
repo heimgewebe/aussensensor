@@ -1,0 +1,37 @@
+name: Validate aussensensor fixtures against contracts
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  ajv-validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout aussensensor
+        uses: actions/checkout@v4
+
+      - name: Checkout contracts schemas
+        uses: actions/checkout@v4
+        with:
+          repository: heimgewebe/contracts
+          path: heimgewebe-contracts
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Validate fixtures with AJV
+        run: |
+          cd heimgewebe-contracts
+          npx --yes ajv-cli@5 validate \
+            -s "json/**/*.schema.json" \
+            -d "../tests/fixtures/**/*.jsonl" \
+            --spec=draft2020 \
+            --errors=line \
+            --all-errors
