@@ -10,11 +10,11 @@ if [ -z "$SCHEMA_FILE" ] || [ -z "$FIXTURES_PATTERN" ]; then
 fi
 
 # Find all JSONL files matching the pattern
-# Convert glob pattern to find pattern (e.g., tests/fixtures/**/*.jsonl -> tests/fixtures -name "*.jsonl")
-SEARCH_DIR=$(echo "$FIXTURES_PATTERN" | sed 's|/\*\*.*||')
-JSONL_FILES=$(find "$SEARCH_DIR" -name "*.jsonl" -type f)
+# Convert glob pattern to find pattern (e.g., tests/fixtures/**/*.jsonl -> tests/fixtures)
+SEARCH_DIR=$(echo "$FIXTURES_PATTERN" | sed 's|/\*\*/\*\.jsonl$||')
+mapfile -t JSONL_FILES < <(find "$SEARCH_DIR" -name "*.jsonl" -type f)
 
-if [ -z "$JSONL_FILES" ]; then
+if [ ${#JSONL_FILES[@]} -eq 0 ]; then
   echo "No JSONL files found matching pattern: $FIXTURES_PATTERN"
   exit 1
 fi
@@ -27,7 +27,7 @@ TEMP_DIR=$(mktemp -d)
 echo "Validating JSONL fixtures against schema: $SCHEMA_FILE"
 echo "================================================"
 
-for JSONL_FILE in $JSONL_FILES; do
+for JSONL_FILE in "${JSONL_FILES[@]}"; do
   echo "Processing: $JSONL_FILE"
   LINE_NUM=0
   
@@ -68,7 +68,7 @@ for JSONL_FILE in $JSONL_FILES; do
         -d "$TEMP_JSON" \
         --spec=draft2020 \
         --errors=text \
-        --strict=false 2>&1 | grep -E "^(error:|.*invalid)" || true
+        --strict=false 2>&1 | grep -E "^(error:|data.*invalid$)" || true
     fi
   done < "$JSONL_FILE"
   
