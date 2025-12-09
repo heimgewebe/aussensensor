@@ -18,12 +18,6 @@ jobs:
       - name: Checkout aussensensor
         uses: actions/checkout@v4
 
-      - name: Checkout contracts schemas
-        uses: actions/checkout@v4
-        with:
-          repository: heimgewebe/contracts
-          path: heimgewebe-contracts
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -31,10 +25,4 @@ jobs:
 
       - name: Validate fixtures with AJV
         run: |
-          cd heimgewebe-contracts
-          npx --yes ajv-cli@5 validate \
-            -s "json/**/*.schema.json" \
-            -d "../tests/fixtures/**/*.jsonl" \
-            --spec=draft2020 \
-            --errors=line \
-            --all-errors
+          bash scripts/validate-fixtures.sh "contracts/aussen.event.schema.json" "tests/fixtures/**/*.jsonl"
