@@ -1,5 +1,8 @@
 name: Validate aussensensor fixtures against contracts
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:
@@ -22,10 +25,4 @@ jobs:
 
       - name: Validate fixtures with AJV
         run: |
-          cd heimgewebe-contracts
-          npx --yes ajv-cli@5 validate \
-            -s "aussen.event.schema.json" \
-            -d "../tests/fixtures/**/*.jsonl" \
-            --spec=draft2020 \
-            --errors=line \
-            --all-errors
+          bash scripts/validate-fixtures.sh "contracts/aussen.event.schema.json" "tests/fixtures/**/*.jsonl"

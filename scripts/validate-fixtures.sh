@@ -11,7 +11,7 @@ fi
 
 # Find all JSONL files matching the pattern
 # Convert glob pattern to find pattern (e.g., tests/fixtures/**/*.jsonl -> tests/fixtures)
-SEARCH_DIR=$(echo "$FIXTURES_PATTERN" | sed 's|/\*\*/\*\.jsonl$||')
+SEARCH_DIR="${FIXTURES_PATTERN%%/\*\*/\*.jsonl}"
 mapfile -t JSONL_FILES < <(find "$SEARCH_DIR" -name "*.jsonl" -type f)
 
 if [ ${#JSONL_FILES[@]} -eq 0 ]; then
