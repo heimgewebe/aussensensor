@@ -1,5 +1,8 @@
 name: Validate aussensensor fixtures against contracts
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:
