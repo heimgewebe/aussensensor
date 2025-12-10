@@ -18,15 +18,28 @@ trap cleanup EXIT INT TERM
 need() {
   command -v "$1" >/dev/null 2>&1 || {
     echo "Fehler: '$1' wird benötigt, ist aber nicht im PATH." >&2
-    if [[ "$1" == "ajv" ]]; then
-      echo "Hinweis: Installiere ajv-cli z. B. mit:" >&2
-      echo "  npm install -g ajv-cli ajv-formats" >&2
-    fi
     exit 1
   }
 }
 
-need ajv
+setup_ajv() {
+  if command -v ajv >/dev/null 2>&1; then
+    AJV_CMD=(ajv)
+    return 0
+  fi
+
+  if command -v npx >/dev/null 2>&1; then
+    AJV_CMD=(npx -y -p ajv-cli@5 -p ajv-formats ajv)
+    return 0
+  fi
+
+  echo "Fehler: 'ajv' wird benötigt, ist aber nicht im PATH." >&2
+  echo "Hinweis: Installiere ajv-cli z. B. mit:" >&2
+  echo "  npm install -g ajv-cli ajv-formats" >&2
+  exit 1
+}
+
+setup_ajv
 need sed
 
 print_usage() {
@@ -106,12 +119,12 @@ validate_line() {
   # Write line to temp file with trailing newline
   printf '%s\n' "$line" >"$TMP_EVENT_FILE"
 
-  if ! ajv validate -s "$TMP_SCHEMA_FILE" -d "$TMP_EVENT_FILE" --spec=draft7 --strict=false -c ajv-formats >/dev/null; then
+  if ! "${AJV_CMD[@]}" validate -s "$TMP_SCHEMA_FILE" -d "$TMP_EVENT_FILE" --spec=draft7 --strict=false -c ajv-formats >/dev/null; then
           echo "Fehler: Validierung fehlgeschlagen ($context)." >&2
           echo "JSON-Objekt:" >&2
           cat "$TMP_EVENT_FILE" >&2
           echo "Details:" >&2
-          ajv validate -s "$TMP_SCHEMA_FILE" -d "$TMP_EVENT_FILE" --spec=draft7 --strict=false -c ajv-formats --errors=text
+          "${AJV_CMD[@]}" validate -s "$TMP_SCHEMA_FILE" -d "$TMP_EVENT_FILE" --spec=draft7 --strict=false -c ajv-formats --errors=text
           return 1
   fi
 }
