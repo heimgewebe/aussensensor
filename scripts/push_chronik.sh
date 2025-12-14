@@ -105,7 +105,7 @@ else
   need curl
   echo "→ Push via curl (Fallback) → $INGEST_URL"
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    echo "[DRY-RUN] Würde $(grep -c . "$FILE_PATH") Ereignis(se) an '$INGEST_URL' übertragen." >&2
+    echo "[DRY-RUN] Würde $(grep -c . "$FILE_PATH" || true) Ereignis(se) an '$INGEST_URL' übertragen." >&2
     echo "[DRY-RUN] Datei: $FILE_PATH" >&2
     echo "[DRY-RUN] Content-Type: $CONTENT_TYPE" >&2
     if [[ -n "$AUTH_TOKEN" ]]; then
