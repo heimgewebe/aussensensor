@@ -16,6 +16,7 @@ SCRIPT_DIR=""
 REPO_ROOT=""
 LOCK_FILE=""     # wird aus OUTPUT_FILE abgeleitet
 TMP_LINE_FILE="" # explizit initialisieren
+LOCK_DIR=""      # für Fallback-Locking
 
 have() { command -v "$1" >/dev/null 2>&1; }
 need() {
@@ -30,6 +31,8 @@ safe_mktemp() { mktemp "${TMPDIR:-/tmp}/aussen_append.$(uuid).XXXXXX"; }
 cleanup() {
   # Stellt sicher, dass temporäre Dateien bei Skript-Ende gelöscht werden.
   [[ -n "${TMP_LINE_FILE:-}" && -f "$TMP_LINE_FILE" ]] && rm -f -- "$TMP_LINE_FILE"
+  # Fallback-Lock aufräumen
+  [[ -n "${LOCK_DIR:-}" && -d "$LOCK_DIR" ]] && rmdir "$LOCK_DIR"
   return 0
 }
 trap cleanup EXIT INT TERM
@@ -289,17 +292,26 @@ append_to_feed() {
     fi
     exec 9>&-
   else
-    # Fallback ohne flock: atomar ersetzen mit Basis-Metadaten
-    TMP_FEED_FILE="$(safe_mktemp)"
+    # Fallback ohne flock: mkdir-basiertes Locking (portabel und sicher)
+    LOCK_DIR="${OUTPUT_FILE}.lock.d"
+    local retries=0
+    local max_retries=50
 
-    if [[ -f "$OUTPUT_FILE" ]]; then
-      # Inhalt und Basis-Metadaten übernehmen
-      cp -p -- "$OUTPUT_FILE" "$TMP_FEED_FILE"
-    fi
+    while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+      if ((retries >= max_retries)); then
+        echo "Fehler: Lock timeout auf $LOCK_DIR" >&2
+        exit 1
+      fi
+      # Versuche sub-second sleep, fallback auf 1s
+      sleep 0.1 2>/dev/null || sleep 1
+      ((retries++))
+    done
 
-    # Neue Zeile anhängen und dann atomar ersetzen
-    cat "$TMP_LINE_FILE" >>"$TMP_FEED_FILE"
-    mv -f -- "$TMP_FEED_FILE" "$OUTPUT_FILE"
+    # Kritischer Abschnitt
+    cat "$TMP_LINE_FILE" >>"$OUTPUT_FILE"
+
+    rmdir "$LOCK_DIR"
+    LOCK_DIR="" # Reset nach erfolgreichem Release
   fi
 }
 
