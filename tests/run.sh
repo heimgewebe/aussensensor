@@ -20,4 +20,4 @@ if [[ ! -x "$BATS_EXEC" ]]; then
 fi
 
 # Run the tests
-"$BATS_EXEC" "$TESTS_DIR"/test_append-feed.bats
+"$BATS_EXEC" "$TESTS_DIR"/*.bats

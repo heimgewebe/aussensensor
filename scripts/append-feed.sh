@@ -157,17 +157,35 @@ parse_args() {
 
   # Handle positional arguments if flags were not sufficient or strictly positional mode
   if [[ ${#positional[@]} -gt 0 ]]; then
-      [[ -z "$source_arg" && ${#positional[@]} -ge 1 ]] && source="${positional[0]}"
-      [[ -z "$type_arg" && ${#positional[@]} -ge 2 ]] && type="${positional[1]}"
-      [[ -z "$title_arg" && ${#positional[@]} -ge 3 ]] && title="${positional[2]}"
-      [[ -z "$summary_arg" && ${#positional[@]} -ge 4 ]] && summary="${positional[3]}"
-      [[ -z "$url_arg" && ${#positional[@]} -ge 5 ]] && url="${positional[4]}"
-      # Verbleibende Argumente sind Tags (ohne leere/whitespace Tags)
-      if [[ ${#positional[@]} -gt 5 ]]; then
-          for tag in "${positional[@]:5}"; do
-              [[ -n "${tag// /}" ]] && tags_array+=("$tag")
-          done
+      local pos_idx=0
+
+      if [[ -z "$source_arg" && $pos_idx -lt ${#positional[@]} ]]; then
+          source="${positional[$pos_idx]}"
+          ((pos_idx++)) || true
       fi
+      if [[ -z "$type_arg" && $pos_idx -lt ${#positional[@]} ]]; then
+          type="${positional[$pos_idx]}"
+          ((pos_idx++)) || true
+      fi
+      if [[ -z "$title_arg" && $pos_idx -lt ${#positional[@]} ]]; then
+          title="${positional[$pos_idx]}"
+          ((pos_idx++)) || true
+      fi
+      if [[ -z "$summary_arg" && $pos_idx -lt ${#positional[@]} ]]; then
+          summary="${positional[$pos_idx]}"
+          ((pos_idx++)) || true
+      fi
+      if [[ -z "$url_arg" && $pos_idx -lt ${#positional[@]} ]]; then
+          url="${positional[$pos_idx]}"
+          ((pos_idx++)) || true
+      fi
+
+      # Verbleibende Argumente sind Tags (ohne leere/whitespace Tags)
+      while [[ $pos_idx -lt ${#positional[@]} ]]; do
+          local tag="${positional[$pos_idx]}"
+          [[ -n "${tag// /}" ]] && tags_array+=("$tag")
+          ((pos_idx++)) || true
+      done
   fi
 
   # Merge tags from -g/--tags
@@ -234,6 +252,7 @@ build_json() {
       tags_json="$(printf '%s\n' "${tags_array[@]}" | jq -R . | jq -s .)"
   fi
 
+  # Build base object
   jq -cn \
     --arg ts "$ts" \
     --arg type "$type" \
@@ -248,9 +267,8 @@ build_json() {
       "source": $source,
       "title": $title,
       "summary": ($summary // ""),
-      "url": ($url // ""),
       "tags": ($tags // [])
-    }'
+    } + (if $url != "" then {"url": $url} else {} end)'
 }
 
 validate_json_schema() {
