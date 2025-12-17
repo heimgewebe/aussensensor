@@ -1,4 +1,4 @@
-ai_context_version: 1.0
+ai_context_version: 1.1
 
 # Dieses Repo ist Teil des Heimgewebes.
 # Systemweiter Kontext durch Heimgeist:
@@ -13,6 +13,28 @@ project:
   role: sensor_event_producer
   primary_language: bash
   visibility: internal
+
+heimgewebe:
+  axis:
+    - Events
+    - Motorik
+    - Contracts
+  fleet:
+    enabled: true
+  wgx:
+    profile_expected: true
+    guard_smoke_expected: true
+
+interfaces:
+  consumes:
+    - "event.schema"
+  produces:
+    - "aussen.event.*"
+
+contracts:
+  schemas:
+    - path: "contracts/aussen.event.schema.json"
+      note: "Read-only mirror of canonical schema."
 
 dependencies:
   internal:
@@ -38,6 +60,13 @@ architecture:
     input: polling / external sensors
     processing: map to contract shape
     output: POST to chronik ingest
+
+boundaries:
+  not_responsible_for:
+    - "Event storage (chronik does that)"
+    - "Visualizing data (leitstand does that)"
+  dangerous_assumptions:
+    - "Assuming chronik is always available (must retry)"
 
 conventions:
   branching: "main, feature/*"
