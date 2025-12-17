@@ -35,7 +35,7 @@ cleanup() {
   [[ -n "${LOCK_DIR:-}" && -d "$LOCK_DIR" ]] && rmdir "$LOCK_DIR"
   return 0
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
 
 # --- Funktionen ------------------------------------------------------------
 

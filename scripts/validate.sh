@@ -13,7 +13,7 @@ TMP_SCHEMA_FILE="$(mktemp "${TMPDIR:-/tmp}/aussen_event.schema.XXXXXX.json")"
 cleanup() {
   rm -f "$TMP_EVENT_FILE" "$TMP_SCHEMA_FILE"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
 
 need() {
   command -v "$1" >/dev/null 2>&1 || {
