@@ -113,7 +113,7 @@ need curl
 # Robust HTTP request implementation
 tmp_body="$(mktemp "${TMPDIR:-/tmp}/heimlern_push.XXXX")"
 cleanup() { rm -f "$tmp_body"; }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
 
 http_code="$(curl -sS -o "$tmp_body" -w "%{http_code}" \
   -H "Content-Type: $CONTENT_TYPE" \
