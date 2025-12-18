@@ -9,14 +9,10 @@ Date: 2025-10-12
 
 ## Entscheidung
 - Alle Einträge werden als JSON Lines (`export/feed.jsonl`) gespeichert, **eine Zeile = ein Event**.
-- Contract [`contracts/aussen.event.schema.json`](../../contracts/aussen.event.schema.json) (Draft 2020-12) mit Pflichtfeldern:
-  - `ts` (`string`, `format: date-time`)
-  - `type` (`"news"|"sensor"|"project"|"alert"`)
-  - `source` (`string`)
-  - `title` (`string`)
-  - `summary` (`string`, `maxLength: 500`)
-  - `url` (`string`)
-  - `tags` (`array<string>`)
+- Contract [`contracts/aussen.event.schema.json`](../../contracts/aussen.event.schema.json) (Draft 2020-12) ist die Quelle der Wahrheit.
+  - Schema-Pflichtfelder (minimal, stabil): `type` (`string`), `source` (`string`, `minLength: 1`).
+  - Bedingte Pflicht (per Schema-Regel): Wenn `type == "link"`, dann ist `url` Pflicht (`string`, `format: uri`).
+  - Stark empfohlene Felder (für gute Nutzbarkeit, aber nicht überall erzwingbar): `ts` (`string`, `format: date-time`), `title` (`string`, `minLength: 1`), `url` (`string`, `format: uri`), `summary` (`string`, `maxLength: 2000`), `tags` (`array<string>`, `uniqueItems: true`).
 - `scripts/append-feed.sh` setzt `ts` automatisch, prüft `type`, Summary-Länge und Tags und erzeugt strikt schema-konforme Objekte.
 - Schema-Versionierung erfolgt über Git-Tags im Contracts-Repo; Erweiterungen werden als neue Schema-Dateien ergänzt.
 - Validierung lokal und in CI per `ajv-cli`; Feed-Einträge müssen `additionalProperties: false` erfüllen.
@@ -25,7 +21,7 @@ Date: 2025-10-12
 - Einheitliche Datenstruktur ermöglicht einfache Aggregation und spätere Migration in einen Daemon.
 - Kurator:innen haben klare Leitplanken, welche Felder wie zu füllen sind; Fehlbedienung wird früh entdeckt.
 - Erweiterungen erfordern Schema-Pflege und Dokumentation (Release Notes im Repo).
-- Monitoring kann sich auf Pflichtfelder verlassen (z. B. Alter über `ts`, Quellenverteilung über `tags`).
+- Monitoring kann sich auf Schema-Pflichtfelder verlassen; für Auswertungen sollten `ts` und `tags` nach Möglichkeit immer gesetzt werden.
 
 ## Implementierungsnotizen
 - `append-feed.sh` nutzt `jq -nc` zum Erzeugen der JSON-Objekte und `date -Iseconds` für `ts`; Tags werden als JSON-Array aus CLI-Argumenten gebaut.
@@ -35,3 +31,7 @@ Date: 2025-10-12
 ## Alternativen
 - Unstrukturiertes Free-Text-Log (verworfen: erschwerte Automatisierung).
 - Formatierung über CSV (verworfen: unzureichende Ausdrucksmächtigkeit für verschachtelte Felder und Anhänge).
+
+## Hinweis zur Format-Validierung (URI)
+- Wenn in CI oder lokal `ajv` mit `--validate-formats=false` läuft, wird `format: uri` nicht geprüft.
+- Für höhere Datenqualität kann man `--validate-formats=true` aktivieren; dann sind leere Strings bei `url` automatisch ungültig.
