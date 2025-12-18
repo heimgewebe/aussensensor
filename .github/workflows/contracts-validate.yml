@@ -45,7 +45,7 @@ jobs:
 
       - name: Verify 'uses:' pins for heimgewebe/contracts
         env:
-          REQUIRED_REPO: "heimgewebe/contracts/.github/workflows/contracts-ajv-reusable.yml"
+          REQUIRED_REPO: "heimgewebe/metarepo/.github/workflows/contracts-ajv-reusable.yml"
           REQUIRED_REF: "contracts-v1"
         run: |
           set -euo pipefail
@@ -184,7 +184,7 @@ jobs:
   validate:
     name: "Validate fixtures via reusable workflow"
     needs: [version-sync-check, guard]
-    uses: heimgewebe/contracts/.github/workflows/contracts-ajv-reusable.yml@contracts-v1
+    uses: heimgewebe/metarepo/.github/workflows/contracts-ajv-reusable.yml@contracts-v1
     secrets: inherit
     with:
       fixtures_glob: ${{ vars.FIXTURES_GLOB || 'fixtures/**/*.jsonl' }}

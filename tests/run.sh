@@ -15,8 +15,13 @@ if [[ ! -x "$BATS_EXEC" ]]; then
 fi
 
 if [[ ! -x "$BATS_EXEC" ]]; then
-  echo "bats executable not found. Did 'git submodule update --init --recursive' succeed?" >&2
-  exit 1
+  if command -v bats >/dev/null 2>&1; then
+    BATS_EXEC="bats"
+  else
+    echo "bats executable not found (checked '$BATS_EXEC' and system PATH)." >&2
+    echo "Please install bats or run 'git submodule update --init --recursive'" >&2
+    exit 1
+  fi
 fi
 
 # Run the tests
