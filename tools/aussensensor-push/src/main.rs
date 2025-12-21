@@ -31,7 +31,7 @@ fn main() -> Result<()> {
         lines.push(l);
     }
     if lines.is_empty() {
-        println!("Warnung: keine Events in {}", &args.file);
+        eprintln!("Warnung: keine Events in {}", &args.file);
         return Ok(());
     }
 
@@ -39,11 +39,11 @@ fn main() -> Result<()> {
     let token = std::env::var("CHRONIK_TOKEN").ok();
 
     if args.dry_run {
-        println!("[DRY-RUN] Würde {} Events an {} senden.", lines.len(), &args.url);
+        eprintln!("[DRY-RUN] Würde {} Events an {} senden.", lines.len(), &args.url);
         if let Some(t) = &token {
-            println!("[DRY-RUN] Token: gesetzt ({} Zeichen).", t.len());
+            eprintln!("[DRY-RUN] Token: gesetzt ({} Zeichen).", t.len());
         } else {
-            println!("[DRY-RUN] Token: nicht gesetzt.");
+            eprintln!("[DRY-RUN] Token: nicht gesetzt.");
         }
         return Ok(());
     }
@@ -67,6 +67,17 @@ fn main() -> Result<()> {
 
         bail!("ingest failed: {status} - response body: {body}");
     }
-    println!("OK: {} akzeptiert", args.url);
+
+    // Success: Output the response body to stdout (as curl does)
+    // CRITIQUE FIX: Do not silence errors reading the body.
+    let resp_body = resp.text().context("failed to read response body")?;
+    print!("{}", resp_body);
+
+    // Ensure trailing newline if missing and body not empty
+    if !resp_body.is_empty() && !resp_body.ends_with('\n') {
+        println!();
+    }
+
+    eprintln!("OK: {} akzeptiert", args.url);
     Ok(())
 }
