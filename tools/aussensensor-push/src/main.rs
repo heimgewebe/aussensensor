@@ -69,8 +69,10 @@ fn main() -> Result<()> {
     }
 
     // Success: Output the response body to stdout (as curl does)
-    let resp_body = resp.text().unwrap_or_default();
+    // CRITIQUE FIX: Do not silence errors reading the body.
+    let resp_body = resp.text().context("failed to read response body")?;
     print!("{}", resp_body);
+
     // Ensure trailing newline if missing and body not empty
     if !resp_body.is_empty() && !resp_body.ends_with('\n') {
         println!();
