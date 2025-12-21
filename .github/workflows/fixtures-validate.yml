@@ -25,4 +25,4 @@ jobs:
 
       - name: Validate fixtures with AJV
         run: |
-          bash scripts/validate-fixtures.sh "contracts/aussen.event.schema.json" "tests/fixtures/**/*.jsonl"
+          bash scripts/validate-fixtures.sh "contracts/aussen.event.schema.json" "tests/fixtures"

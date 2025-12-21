@@ -29,6 +29,7 @@ INVALID_LINES=0
 TEMP_DIR=$(mktemp -d)
 
 # Setup cleanup trap
+# shellcheck disable=SC2317
 cleanup() {
   rm -rf "$TEMP_DIR"
 }
