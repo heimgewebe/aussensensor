@@ -8,6 +8,10 @@ SCRIPT_UNDER_TEST="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/scripts/ap
 setup() {
   # setup a temporary directory for the tests
   BATS_TMPDIR="$(mktemp -d -t bats-aussensensor-XXXXXX)"
+  mkdir -p "$BATS_TMPDIR/scripts"
+  mkdir -p "$BATS_TMPDIR/contracts"
+  local repo_root="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+  cp "$repo_root/contracts/aussen.event.schema.json" "$BATS_TMPDIR/contracts/"
 }
 
 teardown() {
@@ -33,6 +37,24 @@ teardown() {
   assert_success
   last_line=$(tail -n 1 "$feed_file")
   echo "$last_line" | grep -v '"url":'
+}
+
+@test "fallback locking works (flock missing simulation)" {
+  local feed_file="$BATS_TMPDIR/feed.jsonl"
+  local script_noflock="$BATS_TMPDIR/scripts/append-feed-noflock.sh"
+
+  # Create a copy of the script where 'have flock' is replaced by 'false' to force the fallback path
+  sed 's/have flock/false/g' "$SCRIPT_UNDER_TEST" > "$script_noflock"
+  chmod +x "$script_noflock"
+
+  # The script expects validate.sh in the same directory
+  cp "$(dirname "$SCRIPT_UNDER_TEST")/validate.sh" "$BATS_TMPDIR/scripts/validate.sh"
+
+  run "$script_noflock" -o "$feed_file" -s mysource -t news -T "Fallback Lock Test"
+  assert_success
+
+  last_line=$(tail -n 1 "$feed_file")
+  echo "$last_line" | grep '"title":"Fallback Lock Test"'
 }
 
 @test "omit url if explicitly empty string provided" {

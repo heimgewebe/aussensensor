@@ -2,20 +2,24 @@
 set -e
 
 SCHEMA_FILE="$1"
-FIXTURES_PATTERN="$2"
+SEARCH_DIR="$2"
 
-if [ -z "$SCHEMA_FILE" ] || [ -z "$FIXTURES_PATTERN" ]; then
-  echo "Usage: $0 <schema-file> <fixtures-pattern>"
+if [ -z "$SCHEMA_FILE" ] || [ -z "$SEARCH_DIR" ]; then
+  echo "Usage: $0 <schema-file> <directory>"
+  echo "Example: $0 contracts/aussen.event.schema.json tests/fixtures/aussen"
   exit 1
 fi
 
-# Find all JSONL files matching the pattern
-# Convert glob pattern to find pattern (e.g., tests/fixtures/**/*.jsonl -> tests/fixtures)
-SEARCH_DIR="${FIXTURES_PATTERN%%/\*\*/\*.jsonl}"
+if [ ! -d "$SEARCH_DIR" ]; then
+  echo "Error: Directory '$SEARCH_DIR' not found."
+  exit 1
+fi
+
+# Find all JSONL files in the directory
 mapfile -t JSONL_FILES < <(find "$SEARCH_DIR" -name "*.jsonl" -type f)
 
 if [ ${#JSONL_FILES[@]} -eq 0 ]; then
-  echo "No JSONL files found matching pattern: $FIXTURES_PATTERN"
+  echo "No JSONL files found in: $SEARCH_DIR"
   exit 1
 fi
 
@@ -24,8 +28,21 @@ VALID_LINES=0
 INVALID_LINES=0
 TEMP_DIR=$(mktemp -d)
 
-echo "Validating JSONL fixtures against schema: $SCHEMA_FILE"
+# Setup cleanup trap
+cleanup() {
+  rm -rf "$TEMP_DIR"
+}
+trap cleanup EXIT
+
+echo "Validating JSONL fixtures in '$SEARCH_DIR' against schema: $SCHEMA_FILE"
 echo "================================================"
+
+# Determine validator command
+if command -v ajv >/dev/null 2>&1; then
+  CMD=(ajv)
+else
+  CMD=(npx --yes ajv-cli@5)
+fi
 
 for JSONL_FILE in "${JSONL_FILES[@]}"; do
   echo "Processing: $JSONL_FILE"
@@ -33,12 +50,12 @@ for JSONL_FILE in "${JSONL_FILES[@]}"; do
   
   while IFS= read -r line; do
     LINE_NUM=$((LINE_NUM + 1))
-    TOTAL_LINES=$((TOTAL_LINES + 1))
     
     # Skip empty lines
-    if [ -z "$line" ]; then
+    if [ -z "${line// /}" ]; then
       continue
     fi
+    TOTAL_LINES=$((TOTAL_LINES + 1))
     
     # Validate that the line is valid JSON
     if ! echo "$line" | jq empty 2>/dev/null; then
@@ -49,35 +66,34 @@ for JSONL_FILE in "${JSONL_FILES[@]}"; do
     
     # Write the line to a temporary JSON file
     TEMP_JSON="$TEMP_DIR/line_${LINE_NUM}.json"
-    echo "$line" > "$TEMP_JSON"
+    printf '%s\n' "$line" > "$TEMP_JSON"
     
     # Validate the JSON against the schema
-    if npx --yes ajv-cli@5 validate \
+    if "${CMD[@]}" validate \
       -s "$SCHEMA_FILE" \
       -d "$TEMP_JSON" \
       --spec=draft2020 \
       --errors=line \
       --strict=false \
+      -c ajv-formats \
       > /dev/null 2>&1; then
       VALID_LINES=$((VALID_LINES + 1))
     else
       INVALID_LINES=$((INVALID_LINES + 1))
-      echo "  ❌ Line $LINE_NUM is INVALID"
-      npx --yes ajv-cli@5 validate \
+      echo "  ❌ Line $LINE_NUM in $JSONL_FILE is INVALID"
+      "${CMD[@]}" validate \
         -s "$SCHEMA_FILE" \
         -d "$TEMP_JSON" \
         --spec=draft2020 \
         --errors=text \
-        --strict=false 2>&1 | grep -E "^(error:|data.*invalid$)" || true
+        --strict=false \
+        -c ajv-formats 2>&1 | grep -E "^(error:|data.*invalid$)" || true
     fi
   done < "$JSONL_FILE"
   
   echo "  Lines processed: $LINE_NUM"
   echo ""
 done
-
-# Cleanup
-rm -rf "$TEMP_DIR"
 
 echo "================================================"
 echo "Summary:"
