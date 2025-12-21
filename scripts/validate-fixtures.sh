@@ -39,11 +39,12 @@ echo "Validating JSONL fixtures in '$SEARCH_DIR' against schema: $SCHEMA_FILE"
 echo "================================================"
 
 # Determine validator command
-if command -v ajv >/dev/null 2>&1; then
-  CMD=(ajv)
-else
-  CMD=(npx --yes ajv-cli@5)
+if ! command -v ajv >/dev/null 2>&1; then
+  echo "Error: 'ajv' is required but not found in PATH."
+  echo "Please install it, e.g., with: npm install -g ajv-cli@5.0.0 ajv-formats"
+  exit 1
 fi
+CMD=(ajv)
 
 for JSONL_FILE in "${JSONL_FILES[@]}"; do
   echo "Processing: $JSONL_FILE"
