@@ -322,7 +322,7 @@ append_to_feed() {
       fi
       # Versuche sub-second sleep, fallback auf 1s
       sleep 0.1 2>/dev/null || sleep 1
-      ((retries++))
+      ((retries+=1))
     done
 
     # Kritischer Abschnitt

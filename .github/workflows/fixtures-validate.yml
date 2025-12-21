@@ -23,6 +23,9 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Install AJV CLI
+        run: npm install -g ajv-cli@5.0.0 ajv-formats
+
       - name: Validate fixtures with AJV
         run: |
-          bash scripts/validate-fixtures.sh "contracts/aussen.event.schema.json" "tests/fixtures/**/*.jsonl"
+          bash scripts/validate-fixtures.sh "contracts/aussen.event.schema.json" "tests/fixtures"
