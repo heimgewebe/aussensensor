@@ -80,6 +80,7 @@ parse_args() {
       exit 0
       ;;
     -o | --output)
+      [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
       output_arg="$2"
       shift 2
       ;;
@@ -88,6 +89,7 @@ parse_args() {
       shift
       ;;
     -t | --type)
+      [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
       type_arg="$2"
       shift 2
       ;;
@@ -96,6 +98,7 @@ parse_args() {
       shift
       ;;
     -s | --source)
+      [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
       source_arg="$2"
       shift 2
       ;;
@@ -104,6 +107,7 @@ parse_args() {
       shift
       ;;
     -T | --title)
+      [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
       title_arg="$2"
       shift 2
       ;;
@@ -112,6 +116,7 @@ parse_args() {
       shift
       ;;
     -S | --summary)
+      [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
       summary_arg="$2"
       shift 2
       ;;
@@ -120,6 +125,7 @@ parse_args() {
       shift
       ;;
     -u | --url)
+      [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
       url_arg="$2"
       shift 2
       ;;
@@ -128,6 +134,7 @@ parse_args() {
       shift
       ;;
     -g | --tags)
+      [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
       tags_raw="$2"
       shift 2
       ;;
