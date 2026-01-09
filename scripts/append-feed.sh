@@ -17,7 +17,7 @@ REPO_ROOT=""
 LOCK_FILE=""     # wird aus OUTPUT_FILE abgeleitet
 TMP_LINE_FILE="" # explizit initialisieren
 LOCK_DIR=""      # für Fallback-Locking
-ALLOWED_TYPES=("news" "sensor" "project" "alert")
+ALLOWED_TYPES=("news" "sensor" "project" "alert" "link")
 
 have() { command -v "$1" >/dev/null 2>&1; }
 need() {

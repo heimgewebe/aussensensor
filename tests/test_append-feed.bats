@@ -97,3 +97,12 @@ teardown() {
   run jq -e '.source == "heise"' "$feed_file"
   assert_success
 }
+
+@test "append-feed.sh accepts link type with URL" {
+  local feed_file="$BATS_TMPDIR/feed.jsonl"
+  run "$SCRIPT_UNDER_TEST" -o "$feed_file" -s test -t link -T "Link Event" -u "http://example.com/link"
+  assert_success
+  assert_output --partial "OK: Ereignis in '$feed_file' angehängt."
+  run jq -e '.type == "link" and .url == "http://example.com/link"' "$feed_file"
+  assert_success
+}
