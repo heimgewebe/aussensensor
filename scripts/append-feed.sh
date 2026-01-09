@@ -17,6 +17,7 @@ REPO_ROOT=""
 LOCK_FILE=""     # wird aus OUTPUT_FILE abgeleitet
 TMP_LINE_FILE="" # explizit initialisieren
 LOCK_DIR=""      # für Fallback-Locking
+ALLOWED_TYPES=("news" "sensor" "project" "alert")
 
 have() { command -v "$1" >/dev/null 2>&1; }
 need() {
@@ -229,13 +230,30 @@ validate_args() {
     exit 1
   fi
 
-  if [[ -z "${source//[[:space:]]/}" || -z "${title//[[:space:]]/}" ]]; then
-    echo "Fehler: source/title dürfen nicht nur aus Leerzeichen bestehen." >&2
+  if [[ -z "${source//[[:space:]]/}" || -z "${type//[[:space:]]/}" || -z "${title//[[:space:]]/}" ]]; then
+    echo "Fehler: source/type/title dürfen nicht nur aus Leerzeichen bestehen." >&2
+    print_usage
     exit 1
   fi
 
-  if [[ "$source" == "-" || "$title" == "-" ]]; then
-    echo "Fehler: '-' ist kein gültiger Wert für source/title." >&2
+  if [[ "$source" == "-" || "$type" == "-" || "$title" == "-" ]]; then
+    echo "Fehler: '-' ist kein gültiger Wert für source/type/title." >&2
+    print_usage
+    exit 1
+  fi
+
+  local type_allowed=0
+  for allowed in "${ALLOWED_TYPES[@]}"; do
+    if [[ "$type" == "$allowed" ]]; then
+      type_allowed=1
+      break
+    fi
+  done
+  if [[ "$type_allowed" -ne 1 ]]; then
+    local allowed_types_string
+    allowed_types_string="$(IFS=','; echo "${ALLOWED_TYPES[*]}")"
+    echo "Fehler: type muss einer der folgenden Werte sein: ${allowed_types_string}." >&2
+    print_usage
     exit 1
   fi
 
