@@ -44,6 +44,27 @@ teardown() {
   assert_output --partial "Fehler: summary darf höchstens 2000 Zeichen umfassen"
 }
 
+@test "append-feed.sh rejects whitespace-only type" {
+  run "$SCRIPT_UNDER_TEST" -s test -t "   " -T "title"
+  assert_failure
+  assert_output --partial "Fehler: source/type/title dürfen nicht nur aus Leerzeichen bestehen."
+  assert_output --partial "Usage:"
+}
+
+@test "append-feed.sh rejects dash-only type" {
+  run "$SCRIPT_UNDER_TEST" -s test -t "-" -T "title"
+  assert_failure
+  assert_output --partial "Fehler: '-' ist kein gültiger Wert für source/type/title."
+  assert_output --partial "Usage:"
+}
+
+@test "append-feed.sh rejects unknown type" {
+  run "$SCRIPT_UNDER_TEST" -s test -t typo -T "title"
+  assert_failure
+  assert_output --partial "Fehler: type muss einer der folgenden Werte sein"
+  assert_output --partial "Usage:"
+}
+
 @test "append-feed.sh handles positional tags" {
   local feed_file="$BATS_TMPDIR/feed.jsonl"
   run "$SCRIPT_UNDER_TEST" -o "$feed_file" s news "title" "summary" "http://example.com/tag-test" tag1 tag2
@@ -74,5 +95,14 @@ teardown() {
   assert_success
   assert_output --partial "OK: Ereignis in '$feed_file' angehängt."
   run jq -e '.source == "heise"' "$feed_file"
+  assert_success
+}
+
+@test "append-feed.sh accepts link type with URL" {
+  local feed_file="$BATS_TMPDIR/feed.jsonl"
+  run "$SCRIPT_UNDER_TEST" -o "$feed_file" -s test -t link -T "Link Event" -u "http://example.com/link"
+  assert_success
+  assert_output --partial "OK: Ereignis in '$feed_file' angehängt."
+  run jq -e '.type == "link" and .url == "http://example.com/link"' "$feed_file"
   assert_success
 }
