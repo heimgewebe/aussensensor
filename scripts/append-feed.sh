@@ -26,7 +26,7 @@ need() {
     exit 1
   fi
 }
-uuid() { if have uuidgen; then uuidgen; else echo "$RANDOM-$RANDOM-$$-$(date +%s%N)"; fi; }
+uuid() { if have uuidgen; then uuidgen; else echo "$RANDOM-$RANDOM-$$-$(date +%s)"; fi; }
 safe_mktemp() { mktemp "${TMPDIR:-/tmp}/aussen_append.$(uuid).XXXXXX"; }
 
 cleanup() {
@@ -269,7 +269,7 @@ validate_args() {
 
 build_json() {
   local ts
-  ts="$(date -Iseconds -u)"
+  ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
   # Convert tags array to JSON array
   local tags_json="[]"
