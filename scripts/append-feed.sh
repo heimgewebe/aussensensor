@@ -26,6 +26,8 @@ need() {
     exit 1
   fi
 }
+# Generiert eine eindeutige ID für temporäre Dateinamen.
+# Hinweis: Format variiert je nach Tool (UUID vs. Hex-String), ist aber kollisionssicher.
 uuid() {
   if have uuidgen; then
     uuidgen
