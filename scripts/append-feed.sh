@@ -27,7 +27,7 @@ need() {
   fi
 }
 # Generiert eine eindeutige ID für temporäre Dateinamen.
-# Hinweis: Format variiert je nach Tool (UUID vs. Hex-String), ist aber kollisionssicher.
+# Hinweis: Format variiert je nach Tool (UUID vs. Hex-String), ist aber für diesen Zweck hinreichend kollisionssicher.
 tmp_id() {
   if have uuidgen; then
     uuidgen
