@@ -41,7 +41,7 @@ for JSONL_FILE in "${JSONL_FILES[@]}"; do
 
   # Skip empty files
   if [[ ! -s "$JSONL_FILE" ]]; then
-    echo "  ⏩ Skipping empty file."
+    echo "  ⚠️ Skipping empty file."
     continue
   fi
 
