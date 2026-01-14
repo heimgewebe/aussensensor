@@ -65,7 +65,7 @@ done
 echo "================================================"
 
 if [ $errors_found -gt 0 ]; then
-  echo "❌ Validation FAILED: $errors_found file(s) with invalid lines found"
+  echo "❌ Validation FAILED: $errors_found file(s) failed validation."
   exit 1
 else
   echo "✅ All fixtures are valid!"
