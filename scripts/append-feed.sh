@@ -26,7 +26,17 @@ need() {
     exit 1
   fi
 }
-uuid() { if have uuidgen; then uuidgen; else echo "$RANDOM-$RANDOM-$$-$(date +%s)"; fi; }
+uuid() {
+  if have uuidgen; then
+    uuidgen
+  elif have openssl; then
+    openssl rand -hex 16
+  elif have python3; then
+    python3 -c 'import uuid; print(uuid.uuid4())'
+  else
+    echo "$RANDOM-$RANDOM-$$-$(date +%s)"
+  fi
+}
 safe_mktemp() { mktemp "${TMPDIR:-/tmp}/aussen_append.$(uuid).XXXXXX"; }
 
 cleanup() {
