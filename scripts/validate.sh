@@ -113,11 +113,8 @@ validate_file() {
   local file_path="$1"
   local context="$2"
 
-  # Check for non-empty content. `grep -c .` returns 1 on no match, which trips `set -e`.
-  local line_count
-  line_count=$(grep -c . "$file_path" || true)
-
-  if [[ "$line_count" -eq 0 ]]; then
+  # Check for non-empty content.
+  if [[ ! -s "$file_path" ]]; then
     if [[ "$REQUIRE_NONEMPTY" -eq 1 ]]; then
       echo "❌ Keine Ereignisse zur Validierung in '$context' (REQUIRE_NONEMPTY=1)" >&2
       return 1
@@ -128,6 +125,8 @@ validate_file() {
   fi
 
   # ajv can process a whole JSONL file at once.
+  # --strict=false is a conscious policy choice. It allows events to contain additional,
+  # undocumented properties. This supports schema evolution and backward compatibility.
   if ! "${AJV_CMD[@]}" validate -s "$TMP_SCHEMA_FILE" -d "$file_path" --spec=draft7 --strict=false -c ajv-formats >/dev/null; then
     echo "Fehler: Validierung fehlgeschlagen ($context)." >&2
     echo "Details:" >&2

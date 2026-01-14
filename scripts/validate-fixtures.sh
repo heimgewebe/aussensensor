@@ -46,6 +46,8 @@ for JSONL_FILE in "${JSONL_FILES[@]}"; do
   fi
 
   # Validate the entire JSONL file at once
+  # --strict=false is a conscious policy choice. It allows events to contain additional,
+  # undocumented properties. This supports schema evolution and backward compatibility.
   if "${CMD[@]}" validate \
     -s "$SCHEMA_FILE" \
     -d "$JSONL_FILE" \
