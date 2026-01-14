@@ -109,24 +109,34 @@ done
 # If metarepo adds 2020-12-specific features later, consider upgrading to a newer ajv version.
 sed 's|https://json-schema.org/draft/2020-12/schema|http://json-schema.org/draft-07/schema#|' "$SCHEMA_FILE" > "$TMP_SCHEMA_FILE"
 
-validate_line() {
-  local line="$1"
-  local context="${2:-stdin}"
+validate_file() {
+  local file_path="$1"
+  local context="$2"
 
-  # Leere Zeilen ignorieren
-  [[ -z "${line// /}" ]] && return 0
+  # Check for non-empty content. `grep -c .` returns 1 on no match, which trips `set -e`.
+  local line_count
+  line_count=$(grep -c . "$file_path" || true)
 
-  # Write line to temp file with trailing newline
-  printf '%s\n' "$line" >"$TMP_EVENT_FILE"
-
-  if ! "${AJV_CMD[@]}" validate -s "$TMP_SCHEMA_FILE" -d "$TMP_EVENT_FILE" --spec=draft7 --strict=false -c ajv-formats >/dev/null; then
-          echo "Fehler: Validierung fehlgeschlagen ($context)." >&2
-          echo "JSON-Objekt:" >&2
-          cat "$TMP_EVENT_FILE" >&2
-          echo "Details:" >&2
-          "${AJV_CMD[@]}" validate -s "$TMP_SCHEMA_FILE" -d "$TMP_EVENT_FILE" --spec=draft7 --strict=false -c ajv-formats --errors=text
-          return 1
+  if [[ "$line_count" -eq 0 ]]; then
+    if [[ "$REQUIRE_NONEMPTY" -eq 1 ]]; then
+      echo "❌ Keine Ereignisse zur Validierung in '$context' (REQUIRE_NONEMPTY=1)" >&2
+      return 1
+    else
+      echo "⚠️  Keine Ereignisse zur Validierung in '$context'" >&2
+      return 0
+    fi
   fi
+
+  # ajv can process a whole JSONL file at once.
+  if ! "${AJV_CMD[@]}" validate -s "$TMP_SCHEMA_FILE" -d "$file_path" --spec=draft7 --strict=false -c ajv-formats >/dev/null; then
+    echo "Fehler: Validierung fehlgeschlagen ($context)." >&2
+    echo "Details:" >&2
+    "${AJV_CMD[@]}" validate -s "$TMP_SCHEMA_FILE" -d "$file_path" --spec=draft7 --strict=false -c ajv-formats --errors=text
+    return 1
+  fi
+
+  echo "OK: '$context' ist valide."
+  return 0
 }
 
 if [[ ${#FILES_TO_CHECK[@]} -gt 0 ]]; then
@@ -138,53 +148,20 @@ if [[ ${#FILES_TO_CHECK[@]} -gt 0 ]]; then
       continue
     fi
 
-    line_num=0
-    seen=0
-    while IFS= read -r line || [ -n "$line" ]; do
-      line_num=$((line_num + 1))
-      [[ -z "${line// /}" ]] || seen=1
-      if ! validate_line "$line" "Zeile $line_num in '$FILE_TO_CHECK'"; then
-          status=1
-      fi
-    done <"$FILE_TO_CHECK"
-
-    if [[ $seen -eq 0 ]]; then
-      if [[ "$REQUIRE_NONEMPTY" -eq 1 ]]; then
-        echo "❌ Keine Ereignisse zur Validierung in '$FILE_TO_CHECK' (REQUIRE_NONEMPTY=1)" >&2
-        status=1
-      else
-        echo "⚠️  Keine Ereignisse zur Validierung in '$FILE_TO_CHECK'" >&2
-      fi
-    elif [[ $status -eq 0 ]]; then
-      echo "OK: Alle Zeilen in '$FILE_TO_CHECK' sind valide."
+    if ! validate_file "$FILE_TO_CHECK" "$FILE_TO_CHECK"; then
+      status=1
     fi
   done
   exit $status
 
 elif [[ ${#FILES_TO_CHECK[@]} -eq 0 && ! -t 0 ]]; then
-  # Stdin-Modus
-  line_num=0
-  seen=0
-  status=0
-  while IFS= read -r line || [ -n "$line" ]; do
-    line_num=$((line_num + 1))
-    [[ -z "${line// /}" ]] || seen=1
-    if ! validate_line "$line" "stdin (Zeile $line_num)"; then
-        status=1
-    fi
-  done
+  # Stdin mode: read all of stdin to a temp file first
+  cat >"$TMP_EVENT_FILE"
 
-  if [[ $seen -eq 0 ]]; then
-    if [[ "$REQUIRE_NONEMPTY" -eq 1 ]]; then
-      echo "❌ Keine Daten auf stdin (REQUIRE_NONEMPTY=1)" >&2
-      exit 1
-    else
-      echo "⚠️  Keine Daten auf stdin erhalten." >&2
-    fi
-  elif [[ $status -eq 0 ]]; then
-    echo "OK: Stdin-Daten sind valide."
+  if ! validate_file "$TMP_EVENT_FILE" "stdin"; then
+    exit 1
   fi
-  exit $status
+  exit 0
 else
   print_usage
   exit 1
