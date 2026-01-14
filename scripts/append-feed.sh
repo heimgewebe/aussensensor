@@ -26,8 +26,20 @@ need() {
     exit 1
   fi
 }
-uuid() { if have uuidgen; then uuidgen; else echo "$RANDOM-$RANDOM-$$-$(date +%s%N)"; fi; }
-safe_mktemp() { mktemp "${TMPDIR:-/tmp}/aussen_append.$(uuid).XXXXXX"; }
+# Generiert eine eindeutige ID für temporäre Dateinamen.
+# Hinweis: Format variiert je nach Tool (UUID vs. Hex-String), ist aber für diesen Zweck hinreichend kollisionssicher.
+tmp_id() {
+  if have uuidgen; then
+    uuidgen
+  elif have openssl; then
+    openssl rand -hex 16
+  elif have python3; then
+    python3 -c 'import uuid; print(uuid.uuid4())'
+  else
+    echo "$RANDOM-$RANDOM-$$-$(date +%s)"
+  fi
+}
+safe_mktemp() { mktemp "${TMPDIR:-/tmp}/aussen_append.$(tmp_id).XXXXXX"; }
 
 cleanup() {
   # Stellt sicher, dass temporäre Dateien bei Skript-Ende gelöscht werden.
@@ -269,7 +281,7 @@ validate_args() {
 
 build_json() {
   local ts
-  ts="$(date -Iseconds -u)"
+  ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
   # Convert tags array to JSON array
   local tags_json="[]"

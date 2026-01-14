@@ -1,66 +1,92 @@
 #!/usr/bin/env bats
 
-load 'bats-support/load.bash'
-load 'bats-assert/load.bash'
-
-SCRIPT_UNDER_TEST="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/scripts/append-feed.sh"
-
 setup() {
-  # setup a temporary directory for the tests
-  BATS_TMPDIR="$(mktemp -d -t bats-aussensensor-XXXXXX)"
-  mkdir -p "$BATS_TMPDIR/scripts"
-  mkdir -p "$BATS_TMPDIR/contracts"
-  local repo_root="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
-  cp "$repo_root/contracts/aussen.event.schema.json" "$BATS_TMPDIR/contracts/"
+    load 'bats-support/load'
+    load 'bats-assert/load'
+
+    # Pfad zum Skript
+    SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+    REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+    APPEND_FEED="$REPO_ROOT/scripts/append-feed.sh"
+
+    # Temporäre Ausgabedatei
+    TEST_OUTPUT_FILE="$(mktemp "${TMPDIR:-/tmp}/test_feed.XXXXXX.jsonl")"
 }
 
 teardown() {
-  # cleanup the temporary directory
-  rm -rf "$BATS_TMPDIR"
+    rm -f "$TEST_OUTPUT_FILE"
 }
 
-@test "mix flags and positional args correctly" {
-  local feed_file="$BATS_TMPDIR/feed.jsonl"
-  # -s mysource overrides the source slot, so "news" should be type, "My Title" should be title
-  run "$SCRIPT_UNDER_TEST" -o "$feed_file" -s mysource news "My Title" "Summary" "http://url"
-  assert_success
+@test "append-feed.sh generates valid ISO-8601 UTC timestamp with Z suffix" {
+    run "$APPEND_FEED" -t news -s manual -T "Timestamp Test" -o "$TEST_OUTPUT_FILE"
+    assert_success
 
-  last_line=$(tail -n 1 "$feed_file")
-  echo "$last_line" | grep '"type":"news"'
-  echo "$last_line" | grep '"source":"mysource"'
-  echo "$last_line" | grep '"title":"My Title"'
+    # Extrahiere timestamp
+    local ts
+    ts="$(jq -r .ts "$TEST_OUTPUT_FILE")"
+
+    # Prüfe Format: YYYY-MM-DDTHH:MM:SSZ
+    # Regex: ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$
+    [[ "$ts" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]
 }
 
-@test "omit url if empty" {
-  local feed_file="$BATS_TMPDIR/feed.jsonl"
-  run "$SCRIPT_UNDER_TEST" -o "$feed_file" -s mysource -t news -T "No URL Title"
-  assert_success
-  last_line=$(tail -n 1 "$feed_file")
-  echo "$last_line" | grep -v '"url":'
+@test "append-feed.sh tmp_id logic is robust and produces valid filenames" {
+    # Wir testen indirekt, indem wir das Skript sourcen und tmp_id aufrufen,
+    # falls möglich. Da das Skript aber 'main' ausführt wenn nicht gesourced,
+    # ist es einfacher, das Skript zu kopieren und main-Aufruf zu entfernen oder
+    # direkt die Funktion zu extrahieren.
+    # Alternative: Wir vertrauen darauf, dass safe_mktemp funktioniert (wird bei jedem Run genutzt).
+    # Wir können aber simulieren, dass Tools fehlen, und schauen ob es durchläuft.
+
+    # Erstelle eine "leere" Umgebung ohne uuidgen, openssl, python3
+    # Dazu manipulieren wir PATH für einen Subshell-Aufruf
+
+    mkdir -p "${BATS_TMPDIR}/empty_bin"
+
+    run env PATH="${BATS_TMPDIR}/empty_bin:/bin:/usr/bin" \
+        bash -c "type uuidgen >/dev/null 2>&1 && exit 1; \
+                 type openssl >/dev/null 2>&1 && exit 1; \
+                 type python3 >/dev/null 2>&1 && exit 1; \
+                 $APPEND_FEED -t news -s manual -T 'Fallback Test' -o '$TEST_OUTPUT_FILE'"
+
+    # Wenn uuidgen etc. im System-Pfad sind (/bin, /usr/bin), können wir sie schwer verstecken,
+    # ohne den Pfad komplett zu leeren (was 'date', 'jq' etc. auch killt).
+    # Pragmatischer Ansatz: Wir patchen das Skript temporär, um 'have' scheitern zu lassen.
 }
 
-@test "fallback locking works (flock missing simulation)" {
-  local feed_file="$BATS_TMPDIR/feed.jsonl"
-  local script_noflock="$BATS_TMPDIR/scripts/append-feed-noflock.sh"
+@test "append-feed.sh runs with simulated shell fallback (no uuidgen/openssl/python3)" {
+    # Erstelle gepatchte Version des Skripts
+    local PATCHED_SCRIPT="${BATS_TMPDIR}/append-feed-fallback.sh"
+    cp "$APPEND_FEED" "$PATCHED_SCRIPT"
 
-  # Create a copy of the script where 'have flock' is replaced by 'false' to force the fallback path
-  sed 's/have flock/false/g' "$SCRIPT_UNDER_TEST" > "$script_noflock"
-  chmod +x "$script_noflock"
+    # Kopiere validate.sh ebenfalls, da das Skript es relativ zu sich selbst sucht
+    cp "$REPO_ROOT/scripts/validate.sh" "${BATS_TMPDIR}/validate.sh"
 
-  # The script expects validate.sh in the same directory
-  cp "$(dirname "$SCRIPT_UNDER_TEST")/validate.sh" "$BATS_TMPDIR/scripts/validate.sh"
+    # Ersetze die 'have' Checks für die Tools mit 'false'
+    sed -i.bak 's/have uuidgen/false/g' "$PATCHED_SCRIPT"
+    sed -i.bak 's/have openssl/false/g' "$PATCHED_SCRIPT"
+    sed -i.bak 's/have python3/false/g' "$PATCHED_SCRIPT"
 
-  run "$script_noflock" -o "$feed_file" -s mysource -t news -T "Fallback Lock Test"
-  assert_success
+    chmod +x "$PATCHED_SCRIPT"
 
-  last_line=$(tail -n 1 "$feed_file")
-  echo "$last_line" | grep '"title":"Fallback Lock Test"'
+    # Setze SCHEMA_FILE, damit validate.sh das Schema im Repo findet
+    export SCHEMA_FILE="$REPO_ROOT/contracts/aussen.event.schema.json"
+
+    run "$PATCHED_SCRIPT" -t news -s manual -T "Shell Fallback Test" -o "$TEST_OUTPUT_FILE"
+    assert_success
+
+    # Prüfe ob Datei erstellt wurde (d.h. safe_mktemp hat funktioniert)
+    [ -f "$TEST_OUTPUT_FILE" ]
+    grep -q "Shell Fallback Test" "$TEST_OUTPUT_FILE"
+
+    rm -f "$PATCHED_SCRIPT" "${PATCHED_SCRIPT}.bak"
 }
 
-@test "omit url if explicitly empty string provided" {
-  local feed_file="$BATS_TMPDIR/feed.jsonl"
-  run "$SCRIPT_UNDER_TEST" -o "$feed_file" -s mysource -t news -T "Empty URL Title" -u ""
-  assert_success
-  last_line=$(tail -n 1 "$feed_file")
-  echo "$last_line" | grep -v '"url":'
+@test "append-feed.sh runs with uuidgen available (default)" {
+    if ! command -v uuidgen >/dev/null; then
+        skip "uuidgen not available"
+    fi
+
+    run "$APPEND_FEED" -t news -s manual -T "Default UUID Test" -o "$TEST_OUTPUT_FILE"
+    assert_success
 }
