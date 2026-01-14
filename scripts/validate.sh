@@ -125,8 +125,9 @@ validate_file() {
   fi
 
   # ajv can process a whole JSONL file at once.
-  # --strict=false is a conscious policy choice. It allows events to contain additional,
-  # undocumented properties. This supports schema evolution and backward compatibility.
+  # --strict=false is a conscious policy choice. It relaxes some schema validation rules.
+  # For this use case, it is primarily used to allow additional, undocumented properties,
+  # which supports schema evolution and backward compatibility.
   if ! "${AJV_CMD[@]}" validate -s "$TMP_SCHEMA_FILE" -d "$file_path" --spec=draft7 --strict=false -c ajv-formats >/dev/null; then
     echo "Fehler: Validierung fehlgeschlagen ($context)." >&2
     echo "Details:" >&2
