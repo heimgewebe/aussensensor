@@ -28,7 +28,7 @@ need() {
 }
 # Generiert eine eindeutige ID für temporäre Dateinamen.
 # Hinweis: Format variiert je nach Tool (UUID vs. Hex-String), ist aber kollisionssicher.
-uuid() {
+tmp_id() {
   if have uuidgen; then
     uuidgen
   elif have openssl; then
@@ -39,7 +39,7 @@ uuid() {
     echo "$RANDOM-$RANDOM-$$-$(date +%s)"
   fi
 }
-safe_mktemp() { mktemp "${TMPDIR:-/tmp}/aussen_append.$(uuid).XXXXXX"; }
+safe_mktemp() { mktemp "${TMPDIR:-/tmp}/aussen_append.$(tmp_id).XXXXXX"; }
 
 cleanup() {
   # Stellt sicher, dass temporäre Dateien bei Skript-Ende gelöscht werden.
