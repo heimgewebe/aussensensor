@@ -9,10 +9,14 @@ SCHEMA_FILE="${SCHEMA_FILE:-$SCHEMA_PATH}"
 TMP_SCHEMA_FILE="$(mktemp "${TMPDIR:-/tmp}/aussen_event.schema.XXXXXX.json")"
 TMP_DATA_FILE="$(mktemp "${TMPDIR:-/tmp}/aussen_event.data.XXXXXX.json")"
 WRAPPER_SCHEMA="$(mktemp "${TMPDIR:-/tmp}/aussen_event.wrapper.XXXXXX.json")"
+TMP_STDIN=""
 
 # shellcheck disable=SC2317  # cleanup is called via trap
 cleanup() {
   rm -f "$TMP_SCHEMA_FILE" "$TMP_DATA_FILE" "$WRAPPER_SCHEMA"
+  if [[ -n "${TMP_STDIN:-}" ]]; then
+    rm -f "$TMP_STDIN"
+  fi
 }
 trap cleanup EXIT INT TERM
 
@@ -64,31 +68,31 @@ USAGE
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  -s | --schema)
-    if [[ $# -lt 2 ]]; then
-      echo "Fehler: --schema benötigt einen Pfad." >&2
+    -s|--schema)
+      if [[ $# -lt 2 ]]; then
+        echo "Fehler: --schema benötigt einen Pfad." >&2
+        print_usage
+        exit 1
+      fi
+      SCHEMA_FILE="$2"
+      shift 2
+      ;;
+    -h|--help)
+      print_usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "Unbekannte Option: $1" >&2
       print_usage
       exit 1
-    fi
-    SCHEMA_FILE="$2"
-    shift 2
-    ;;
-  -h | --help)
-    print_usage
-    exit 0
-    ;;
-  --)
-    shift
-    break
-    ;;
-  -*)
-    echo "Unbekannte Option: $1" >&2
-    print_usage
-    exit 1
-    ;;
-  *)
-    break
-    ;;
+      ;;
+    *)
+      break
+      ;;
   esac
 done
 
@@ -116,12 +120,8 @@ sed \
 # Extract Schema ID to use in wrapper
 SCHEMA_ID="$(jq -r '."$id" // empty' "$TMP_SCHEMA_FILE")"
 if [[ -z "$SCHEMA_ID" ]]; then
-    # Fallback if no ID found, though our schema has one.
-    # We can try referencing the file, but let's assume ID exists as per contract.
-    echo "Warnung: Keine \$id im Schema gefunden. Referenzierung könnte fehlschlagen." >&2
-    # Fallback ID logic or fail?
-    # Trying to use file path URI
-    SCHEMA_ID="file://${TMP_SCHEMA_FILE}"
+  echo "Warnung: Keine \$id im Schema gefunden. Referenzierung könnte fehlschlagen." >&2
+  SCHEMA_ID="file://${TMP_SCHEMA_FILE}"
 fi
 
 # Create Wrapper Schema (Array of Items)
@@ -134,48 +134,44 @@ cat > "$WRAPPER_SCHEMA" <<EOF
 EOF
 
 validate_file() {
-    local input_file="$1"
+  local input_file="$1"
 
-    # Check if empty (bash check for 0 size)
-    if [[ ! -s "$input_file" ]]; then
-        return 2 # Empty
-    fi
+  # Check if empty (bash check for 0 size)
+  if [[ ! -s "$input_file" ]]; then
+    return 2 # Empty
+  fi
 
-    # Slurp into array
-    # If jq fails (invalid JSON), it prints error to stderr and exits >0
-    if ! jq -s . "$input_file" > "$TMP_DATA_FILE"; then
-        echo "Fehler: Ungültiges JSON in '$input_file'." >&2
-        return 1
-    fi
+  # Slurp into array; jq fails on invalid JSON lines
+  if ! jq -s . "$input_file" > "$TMP_DATA_FILE"; then
+    echo "Fehler: Ungültiges JSON in '$input_file'." >&2
+    return 1
+  fi
 
-    # Check if array is empty (e.g. file was just whitespace)
-    local count
-    count="$(jq length "$TMP_DATA_FILE")"
-    if [[ "$count" -eq 0 ]]; then
-        return 2 # Treated as empty data
-    fi
+  # Treat "only whitespace" as empty data
+  local count
+  count="$(jq length "$TMP_DATA_FILE")"
+  if [[ "$count" -eq 0 ]]; then
+    return 2
+  fi
 
-    # Validate
-    # We pass the wrapper schema as main schema (-s)
-    # And the patched schema as referenced schema (-r)
-    # -c ajv-formats is needed for "format": "uri" etc.
-    if ! "${AJV_CMD[@]}" validate \
-        -s "$WRAPPER_SCHEMA" \
-        -r "$TMP_SCHEMA_FILE" \
-        -d "$TMP_DATA_FILE" \
-        --spec=draft7 --strict=false -c ajv-formats >/dev/null; then
+  # Validate array against wrapper schema, with patched schema as referenced
+  if ! "${AJV_CMD[@]}" validate \
+    -s "$WRAPPER_SCHEMA" \
+    -r "$TMP_SCHEMA_FILE" \
+    -d "$TMP_DATA_FILE" \
+    --spec=draft7 --strict=false -c ajv-formats >/dev/null; then
 
-        echo "Fehler: Validierung fehlgeschlagen in '$input_file'." >&2
-        echo "Details:" >&2
-        "${AJV_CMD[@]}" validate \
-            -s "$WRAPPER_SCHEMA" \
-            -r "$TMP_SCHEMA_FILE" \
-            -d "$TMP_DATA_FILE" \
-            --spec=draft7 --strict=false -c ajv-formats --errors=text
-        return 1
-    fi
+    echo "Fehler: Validierung fehlgeschlagen in '$input_file'." >&2
+    echo "Details:" >&2
+    "${AJV_CMD[@]}" validate \
+      -s "$WRAPPER_SCHEMA" \
+      -r "$TMP_SCHEMA_FILE" \
+      -d "$TMP_DATA_FILE" \
+      --spec=draft7 --strict=false -c ajv-formats --errors=text
+    return 1
+  fi
 
-    return 0
+  return 0
 }
 
 status=0
@@ -206,29 +202,17 @@ if [[ ${#FILES_TO_CHECK[@]} -gt 0 ]]; then
       status=1
     fi
   done
-  exit $status
+  exit "$status"
 
 elif [[ ${#FILES_TO_CHECK[@]} -eq 0 && ! -t 0 ]]; then
-  # Stdin-Modus
-  # We pipe stdin to a temp file first, as jq -s needs to read it
-  # Or pass /dev/stdin to validate_file
-
-  # Create a temp file for stdin content
+  # Stdin-Modus: jq -s braucht ein File
   TMP_STDIN="$(mktemp "${TMPDIR:-/tmp}/aussen_stdin.XXXXXX.json")"
   cat > "$TMP_STDIN"
-  # Add to cleanup list?
-  # Trap calls cleanup. We can add it to the rm command in cleanup or just let mktemp handle it if TMPDIR is cleared.
-  # Better to clean it up explicitly.
-
-  # Override cleanup to include this file
-  # Or just rm it at the end.
 
   set +e
   validate_file "$TMP_STDIN"
   exit_code=$?
   set -e
-
-  rm -f "$TMP_STDIN"
 
   if [[ $exit_code -eq 0 ]]; then
     echo "OK: Stdin-Daten sind valide."
