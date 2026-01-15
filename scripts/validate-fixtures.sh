@@ -94,12 +94,13 @@ for JSONL_FILE in "${JSONL_FILES[@]}"; do
   
   while IFS= read -r line || [[ -n "$line" ]]; do
     line_num=$((line_num + 1))
-    total_lines=$((total_lines + 1))
     
     # Skip empty lines
     if [[ -z "$line" ]]; then
       continue
     fi
+    
+    total_lines=$((total_lines + 1))
     
     # Write line to temp file for validation
     echo "$line" > "$TMP_EVENT_FILE"
