@@ -127,7 +127,7 @@ for JSONL_FILE in "${JSONL_FILES[@]}"; do
       fi
       echo "    Line $line_num: Validation failed"
       # Show detailed error for this line
-      echo "$validation_output" | sed 's/^/      /'
+      printf '%s\n' "      ${validation_output//$'\n'/$'\n'      }"
       invalid_lines=$((invalid_lines + 1))
     fi
   done < "$JSONL_FILE"

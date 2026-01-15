@@ -175,7 +175,7 @@ validate_file() {
         has_errors=1
       fi
       echo "Line $line_num:" >&2
-      echo "$validation_output" | sed 's/^/  /' >&2
+      printf '%s\n' "  ${validation_output//$'\n'/$'\n'  }" >&2
     fi
   done < "$file_path"
   
