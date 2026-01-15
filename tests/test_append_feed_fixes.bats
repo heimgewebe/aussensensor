@@ -61,7 +61,6 @@ teardown() {
 
     # Kopiere validate.sh ebenfalls, da das Skript es relativ zu sich selbst sucht
     cp "$REPO_ROOT/scripts/validate.sh" "${BATS_TMPDIR}/validate.sh"
-    cp "$REPO_ROOT/scripts/validate_stream.js" "${BATS_TMPDIR}/validate_stream.js"
 
     # Ersetze die 'have' Checks für die Tools mit 'false'
     sed -i.bak 's/have uuidgen/false/g' "$PATCHED_SCRIPT"
