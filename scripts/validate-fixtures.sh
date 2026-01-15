@@ -35,7 +35,7 @@ FAILED_FILES=0
 for JSONL_FILE in "${JSONL_FILES[@]}"; do
   echo "Processing: $JSONL_FILE"
   
-  # Delegate to the robust validation script
+  # Delegate to the robust validation script via bash execution
   if bash "$VALIDATOR_SCRIPT" -s "$SCHEMA_FILE" "$JSONL_FILE"; then
     echo "  ✅ Valid"
   else
