@@ -29,7 +29,7 @@ need() {
 }
 
 setup_ajv() {
-  # 1) repo-lokales node_modules (deterministisch)
+  # 1) Repo-lokales node_modules (deterministisch)
   if [[ -x "$REPO_ROOT/node_modules/.bin/ajv" ]]; then
     AJV_CMD=("$REPO_ROOT/node_modules/.bin/ajv")
     return 0
@@ -120,12 +120,14 @@ sed \
   -e 's|https://json-schema.org/draft-07/schema#|http://json-schema.org/draft-07/schema#|g' \
   "$SCHEMA_FILE" > "$TMP_SCHEMA_FILE"
 
+# Extract Schema ID to use in wrapper
 SCHEMA_ID="$(jq -r '."$id" // empty' "$TMP_SCHEMA_FILE")"
 if [[ -z "$SCHEMA_ID" ]]; then
   echo "Warnung: Keine \$id im Schema gefunden. Referenzierung könnte fehlschlagen." >&2
   SCHEMA_ID="file://${TMP_SCHEMA_FILE}"
 fi
 
+# Wrapper Schema: Array of items referencing patched schema
 cat > "$WRAPPER_SCHEMA" <<EOF
 {
   "\$schema": "http://json-schema.org/draft-07/schema#",
@@ -150,12 +152,14 @@ validate_file() {
     return 1
   fi
 
+  # File may contain only whitespace/empty lines => array length 0
   local count
   count="$(jq length "$TMP_DATA_FILE")"
   if [[ "$count" -eq 0 ]]; then
     return 2
   fi
 
+  # Validate array using wrapper schema; provide patched schema as referenced resource (-r)
   if ! "${AJV_CMD[@]}" validate \
       -s "$WRAPPER_SCHEMA" \
       -r "$TMP_SCHEMA_FILE" \
