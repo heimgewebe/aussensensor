@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -36,7 +36,7 @@ for JSONL_FILE in "${JSONL_FILES[@]}"; do
   echo "Processing: $JSONL_FILE"
   
   # Delegate to the robust validation script
-  if "$VALIDATOR_SCRIPT" -s "$SCHEMA_FILE" "$JSONL_FILE"; then
+  if bash "$VALIDATOR_SCRIPT" -s "$SCHEMA_FILE" "$JSONL_FILE"; then
     echo "  ✅ Valid"
   else
     echo "  ❌ Invalid"
