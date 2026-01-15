@@ -38,13 +38,21 @@ need() {
 }
 
 setup_ajv() {
-  if command -v ajv >/dev/null 2>&1; then
-    AJV_CMD=(ajv)
+  # Prioritize local node_modules for deterministic validation
+  if [[ -x "./node_modules/.bin/ajv" ]]; then
+    AJV_CMD=(./node_modules/.bin/ajv)
     return 0
   fi
 
+  # Use npx with pinned versions as fallback
   if command -v npx >/dev/null 2>&1; then
-    AJV_CMD=(npx -y -p ajv-cli@5 -p ajv-formats ajv)
+    AJV_CMD=(npx -y -p ajv-cli@5.0.0 -p ajv-formats@2.1.1 ajv)
+    return 0
+  fi
+
+  # Global ajv as last resort
+  if command -v ajv >/dev/null 2>&1; then
+    AJV_CMD=(ajv)
     return 0
   fi
 
@@ -95,15 +103,15 @@ for JSONL_FILE in "${JSONL_FILES[@]}"; do
   while IFS= read -r line || [[ -n "$line" ]]; do
     line_num=$((line_num + 1))
     
-    # Skip empty lines
-    if [[ -z "$line" ]]; then
+    # Skip empty lines and whitespace-only lines
+    if [[ -z "${line//[[:space:]]/}" ]]; then
       continue
     fi
     
     total_lines=$((total_lines + 1))
     
-    # Write line to temp file for validation
-    echo "$line" > "$TMP_EVENT_FILE"
+    # Write line to temp file for validation (byte-safe)
+    printf '%s\n' "$line" > "$TMP_EVENT_FILE"
     
     # Validate this single JSON object
     # --strict=false is a conscious policy choice. It relaxes some schema validation rules.
