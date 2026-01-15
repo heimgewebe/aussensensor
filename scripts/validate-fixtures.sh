@@ -99,6 +99,7 @@ for JSONL_FILE in "${JSONL_FILES[@]}"; do
   # Process line by line for robust validation
   line_num=0
   file_has_errors=0
+  validated_lines=0
   
   while IFS= read -r line || [[ -n "$line" ]]; do
     line_num=$((line_num + 1))
@@ -108,6 +109,7 @@ for JSONL_FILE in "${JSONL_FILES[@]}"; do
       continue
     fi
     
+    validated_lines=$((validated_lines + 1))
     total_lines=$((total_lines + 1))
     
     # Write line to temp file for validation (byte-safe)
@@ -131,7 +133,7 @@ for JSONL_FILE in "${JSONL_FILES[@]}"; do
   done < "$JSONL_FILE"
   
   if [[ $file_has_errors -eq 0 ]]; then
-    echo "  ✅ OK ($line_num lines)"
+    echo "  ✅ OK ($validated_lines lines validated)"
   fi
 done
 

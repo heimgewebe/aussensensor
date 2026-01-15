@@ -8,12 +8,17 @@ REQUIRE_NONEMPTY="${REQUIRE_NONEMPTY:-0}"
 SCHEMA_FILE="${SCHEMA_FILE:-$SCHEMA_PATH}"
 TMP_EVENT_FILE="$(mktemp "${TMPDIR:-/tmp}/aussen_event.validate.XXXXXX.json")"
 TMP_SCHEMA_FILE="$(mktemp "${TMPDIR:-/tmp}/aussen_event.schema.XXXXXX.json")"
+TMP_LINE_FILES=()
 
 # shellcheck disable=SC2317  # cleanup is called via trap
 cleanup() {
   rm -f "$TMP_EVENT_FILE" "$TMP_SCHEMA_FILE"
+  # Clean up any per-line temp files
+  if ((${#TMP_LINE_FILES[@]})); then
+    rm -f "${TMP_LINE_FILES[@]}"
+  fi
 }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM
 
 need() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -138,11 +143,12 @@ validate_file() {
   local validated_lines=0
   local has_errors=0
   local has_content=0
-  local tmp_line_file="$(mktemp "${TMPDIR:-/tmp}/aussen_event.line.XXXXXX.json")"
+  local tmp_line_file
   local validation_output
   
-  # Ensure cleanup of temp file
-  trap 'rm -f "$tmp_line_file"' RETURN
+  # Create temp file and register it for cleanup (handles signals too)
+  tmp_line_file="$(mktemp "${TMPDIR:-/tmp}/aussen_event.line.XXXXXX.json")"
+  TMP_LINE_FILES+=("$tmp_line_file")
   
   while IFS= read -r line || [[ -n "$line" ]]; do
     line_num=$((line_num + 1))
