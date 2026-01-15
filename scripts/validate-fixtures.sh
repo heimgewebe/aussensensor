@@ -6,18 +6,18 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 SCHEMA_FILE="$1"
 SEARCH_DIR="$2"
 
-if [ -z "$SCHEMA_FILE" ] || [ -z "$SEARCH_DIR" ]; then
+if [[ -z "$SCHEMA_FILE" ]] || [[ -z "$SEARCH_DIR" ]]; then
   echo "Usage: $0 <schema-file> <directory>"
   echo "Example: $0 contracts/aussen.event.schema.json tests/fixtures/aussen"
   exit 1
 fi
 
-if [ ! -f "$SCHEMA_FILE" ]; then
+if [[ ! -f "$SCHEMA_FILE" ]]; then
   echo "Error: Schema file '$SCHEMA_FILE' not found."
   exit 1
 fi
 
-if [ ! -d "$SEARCH_DIR" ]; then
+if [[ ! -d "$SEARCH_DIR" ]]; then
   echo "Error: Directory '$SEARCH_DIR' not found."
   exit 1
 fi
