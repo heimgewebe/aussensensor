@@ -29,25 +29,25 @@ need() {
 }
 
 setup_ajv() {
-  # 1) repo-local node_modules (deterministisch, wenn npm install gelaufen ist)
+  # 1) repo-lokales node_modules (deterministisch)
   if [[ -x "$REPO_ROOT/node_modules/.bin/ajv" ]]; then
     AJV_CMD=("$REPO_ROOT/node_modules/.bin/ajv")
     return 0
   fi
 
-  # 2) npx mit gepinnten Versionen (deterministisch)
+  # 2) npx mit gepinnten Versionen
   if command -v npx >/dev/null 2>&1; then
     AJV_CMD=(npx -y -p ajv-cli@5.0.0 -p ajv-formats@2.1.1 ajv)
     return 0
   fi
 
-  # 3) global ajv als Fallback
+  # 3) global ajv als letzter Ausweg
   if command -v ajv >/dev/null 2>&1; then
     AJV_CMD=(ajv)
     return 0
   fi
 
-  echo "Fehler: 'ajv' wird benötigt (weder via node_modules noch npx noch global gefunden)." >&2
+  echo "Fehler: 'ajv' wird benötigt (weder repo-lokal, noch via npx, noch global gefunden)." >&2
   exit 1
 }
 
@@ -120,14 +120,12 @@ sed \
   -e 's|https://json-schema.org/draft-07/schema#|http://json-schema.org/draft-07/schema#|g' \
   "$SCHEMA_FILE" > "$TMP_SCHEMA_FILE"
 
-# Extract Schema ID to use in wrapper
 SCHEMA_ID="$(jq -r '."$id" // empty' "$TMP_SCHEMA_FILE")"
 if [[ -z "$SCHEMA_ID" ]]; then
   echo "Warnung: Keine \$id im Schema gefunden. Referenzierung könnte fehlschlagen." >&2
   SCHEMA_ID="file://${TMP_SCHEMA_FILE}"
 fi
 
-# Wrapper Schema: Array of items referencing patched schema
 cat > "$WRAPPER_SCHEMA" <<EOF
 {
   "\$schema": "http://json-schema.org/draft-07/schema#",
@@ -152,14 +150,12 @@ validate_file() {
     return 1
   fi
 
-  # File may contain only whitespace/empty lines => array length 0
   local count
   count="$(jq length "$TMP_DATA_FILE")"
   if [[ "$count" -eq 0 ]]; then
     return 2
   fi
 
-  # Validate array using wrapper schema; provide patched schema as referenced resource (-r)
   if ! "${AJV_CMD[@]}" validate \
       -s "$WRAPPER_SCHEMA" \
       -r "$TMP_SCHEMA_FILE" \
