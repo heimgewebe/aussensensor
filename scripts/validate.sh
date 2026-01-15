@@ -29,19 +29,25 @@ need() {
 }
 
 setup_ajv() {
-  # 1) npx mit gepinnten Versionen (deterministisch)
+  # 1) Repo-lokales node_modules (deterministisch)
+  if [[ -x "$REPO_ROOT/node_modules/.bin/ajv" ]]; then
+    AJV_CMD=("$REPO_ROOT/node_modules/.bin/ajv")
+    return 0
+  fi
+
+  # 2) npx mit gepinnten Versionen
   if command -v npx >/dev/null 2>&1; then
     AJV_CMD=(npx -y -p ajv-cli@5.0.0 -p ajv-formats@2.1.1 ajv)
     return 0
   fi
 
-  # 2) global ajv als Fallback
+  # 3) global ajv als letzter Ausweg
   if command -v ajv >/dev/null 2>&1; then
     AJV_CMD=(ajv)
     return 0
   fi
 
-  echo "Fehler: 'ajv' wird benötigt (weder via npx noch global gefunden)." >&2
+  echo "Fehler: 'ajv' wird benötigt (weder repo-lokal, noch via npx, noch global gefunden)." >&2
   exit 1
 }
 
