@@ -4,20 +4,22 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SCHEMA_PATH="$REPO_ROOT/contracts/aussen.event.schema.json"
+
 REQUIRE_NONEMPTY="${REQUIRE_NONEMPTY:-0}"
 SCHEMA_FILE="${SCHEMA_FILE:-$SCHEMA_PATH}"
-TMP_SCHEMA_FILE="$(mktemp "${TMPDIR:-/tmp}/aussen_event.schema.XXXXXX.json")"
 
-declare -a CLEANUP_DIRS=()
+TMP_EVENT_FILE="$(mktemp "${TMPDIR:-/tmp}/aussen_event.validate.XXXXXX.json")"
+TMP_SCHEMA_FILE="$(mktemp "${TMPDIR:-/tmp}/aussen_event.schema.XXXXXX.json")"
+TMP_LINE_FILES=()
 
 # shellcheck disable=SC2317  # cleanup is called via trap
 cleanup() {
-  rm -f "$TMP_SCHEMA_FILE"
-  for d in "${CLEANUP_DIRS[@]}"; do
-    rm -rf "$d"
-  done
+  rm -f "$TMP_EVENT_FILE" "$TMP_SCHEMA_FILE"
+  if ((${#TMP_LINE_FILES[@]})); then
+    rm -f "${TMP_LINE_FILES[@]}"
+  fi
 }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM
 
 need() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -26,45 +28,29 @@ need() {
   }
 }
 
-setup_node_validator() {
-  local validator_script="$SCRIPT_DIR/validate_stream.js"
-
-  # Check if we can run node
-  if ! command -v node >/dev/null 2>&1; then
-      echo "Fehler: 'node' wird benötigt." >&2
-      exit 1
+setup_ajv() {
+  # Prioritize local node_modules for deterministic validation
+  if [[ -x "$REPO_ROOT/node_modules/.bin/ajv" ]]; then
+    AJV_CMD=("$REPO_ROOT/node_modules/.bin/ajv")
+    return 0
   fi
 
-  # Check if ajv is available in current environment (e.g. node_modules in repo)
-  # We test this by trying to require 'ajv' in a small script
-  if node -e "require('ajv')" >/dev/null 2>&1; then
-     NODE_VALIDATOR_CMD=(node "$validator_script")
-     return 0
+  # Use npx with pinned versions as fallback
+  if command -v npx >/dev/null 2>&1; then
+    AJV_CMD=(npx -y -p ajv-cli@5.0.0 -p ajv-formats@2.1.1 ajv)
+    return 0
   fi
 
-  # If not found, install to temp dir
-  if ! command -v npm >/dev/null 2>&1; then
-      echo "Fehler: 'npm' wird benötigt, um Abhängigkeiten zu installieren (da 'ajv' nicht gefunden wurde)." >&2
-      exit 1
+  # Global ajv as last resort
+  if command -v ajv >/dev/null 2>&1; then
+    AJV_CMD=(ajv)
+    return 0
   fi
 
-  local env_dir
-  env_dir="$(mktemp -d "${TMPDIR:-/tmp}/ajv_env.XXXXXX")"
-  CLEANUP_DIRS+=("$env_dir")
-
-  # Install dependencies (quietly)
-  # echo "Initialisiere Validierungsumgebung..." >&2
-  if ! npm install --prefix "$env_dir" ajv ajv-formats --no-save --loglevel=error >/dev/null 2>&1; then
-      echo "Fehler beim Installieren von Abhängigkeiten." >&2
-      exit 1
-  fi
-
-  export NODE_PATH="${env_dir}/node_modules:${NODE_PATH:-}"
-  NODE_VALIDATOR_CMD=(node "$validator_script")
+  echo "Fehler: 'ajv' wird benötigt, ist aber nicht verfügbar." >&2
+  echo "Hinweis: npm install (lokal) oder npx (CI) oder global ajv-cli installieren." >&2
+  exit 1
 }
-
-setup_node_validator
-need sed
 
 print_usage() {
   cat <<'USAGE' >&2
@@ -73,7 +59,7 @@ Usage:
     Validiert jede Zeile der angegebenen Datei(en).
 
   <json-producer> | ./scripts/validate.sh [-s|--schema PATH]
-    Validiert das JSON-Objekt von stdin.
+    Validiert JSONL von stdin.
 
 Umgebungsvariablen:
   REQUIRE_NONEMPTY=1      Fehler bei leeren Dateien oder leerem stdin.
@@ -83,35 +69,116 @@ Beispiel:
 USAGE
 }
 
+validate_file() {
+  local file_path="$1"
+  local context="$2"
+
+  # Check for non-empty content.
+  if [[ ! -s "$file_path" ]]; then
+    if [[ "$REQUIRE_NONEMPTY" -eq 1 ]]; then
+      echo "❌ Keine Ereignisse zur Validierung in '$context' (REQUIRE_NONEMPTY=1)" >&2
+      return 1
+    else
+      echo "⚠️  Keine Ereignisse zur Validierung in '$context'" >&2
+      return 0
+    fi
+  fi
+
+  local line_num=0
+  local validated_lines=0
+  local has_errors=0
+  local has_content=0
+  local tmp_line_file
+  local validation_output
+
+  tmp_line_file="$(mktemp "${TMPDIR:-/tmp}/aussen_event.line.XXXXXX.json")"
+  TMP_LINE_FILES+=("$tmp_line_file")
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line_num=$((line_num + 1))
+
+    # Skip empty lines and whitespace-only lines
+    if [[ -z "${line//[[:space:]]/}" ]]; then
+      continue
+    fi
+
+    has_content=1
+    validated_lines=$((validated_lines + 1))
+
+    # Write line to temp file for validation (byte-safe)
+    printf '%s\n' "$line" > "$tmp_line_file"
+
+    # Validate this single JSON object
+    # --strict=false is a conscious policy choice. It relaxes some schema validation rules.
+    # For this use case, it is primarily used to allow additional, undocumented properties,
+    # which supports schema evolution and backward compatibility.
+    if ! validation_output=$("${AJV_CMD[@]}" validate \
+        -s "$TMP_SCHEMA_FILE" \
+        -d "$tmp_line_file" \
+        --spec=draft7 \
+        --strict=false \
+        -c ajv-formats \
+        --errors=text 2>&1); then
+      if [[ $has_errors -eq 0 ]]; then
+        echo "Fehler: Validierung fehlgeschlagen ($context)." >&2
+        echo "Details:" >&2
+        has_errors=1
+      fi
+      echo "Line $line_num:" >&2
+      printf '%s\n' "  ${validation_output//$'\n'/$'\n'  }" >&2
+    fi
+  done < "$file_path"
+
+  if [[ $has_content -eq 0 ]]; then
+    if [[ "$REQUIRE_NONEMPTY" -eq 1 ]]; then
+      echo "❌ Keine Ereignisse zur Validierung in '$context' (REQUIRE_NONEMPTY=1)" >&2
+      return 1
+    else
+      echo "⚠️  Keine Ereignisse zur Validierung in '$context'" >&2
+      return 0
+    fi
+  fi
+
+  if [[ $has_errors -eq 1 ]]; then
+    return 1
+  fi
+
+  echo "OK: '$context' ist valide ($validated_lines lines validated)."
+  return 0
+}
+
 # --- Main --------------------------------------------------------------------
+
+setup_ajv
+need sed
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  -s | --schema)
-    if [[ $# -lt 2 ]]; then
-      echo "Fehler: --schema benötigt einen Pfad." >&2
+    -s|--schema)
+      if [[ $# -lt 2 ]]; then
+        echo "Fehler: --schema benötigt einen Pfad." >&2
+        print_usage
+        exit 1
+      fi
+      SCHEMA_FILE="$2"
+      shift 2
+      ;;
+    -h|--help)
+      print_usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "Unbekannte Option: $1" >&2
       print_usage
       exit 1
-    fi
-    SCHEMA_FILE="$2"
-    shift 2
-    ;;
-  -h | --help)
-    print_usage
-    exit 0
-    ;;
-  --)
-    shift
-    break
-    ;;
-  -*)
-    echo "Unbekannte Option: $1" >&2
-    print_usage
-    exit 1
-    ;;
-  *)
-    break
-    ;;
+      ;;
+    *)
+      break
+      ;;
   esac
 done
 
@@ -131,7 +198,10 @@ done
 # to allow validation while keeping the source file in sync with metarepo (2020-12).
 # This works because our schema doesn't use 2020-12-exclusive features.
 # If metarepo adds 2020-12-specific features later, consider upgrading to a newer ajv version.
-sed 's|https://json-schema.org/draft/2020-12/schema|http://json-schema.org/draft-07/schema#|' "$SCHEMA_FILE" > "$TMP_SCHEMA_FILE"
+#
+# Note: prefer https for the replacement target for consistency.
+sed 's|https://json-schema.org/draft/2020-12/schema|https://json-schema.org/draft-07/schema#|' \
+  "$SCHEMA_FILE" > "$TMP_SCHEMA_FILE"
 
 if [[ ${#FILES_TO_CHECK[@]} -gt 0 ]]; then
   status=0
@@ -141,47 +211,15 @@ if [[ ${#FILES_TO_CHECK[@]} -gt 0 ]]; then
       status=1
       continue
     fi
-
-    # Run validation via node stream script
-    # Capture exit code: 0=success, 1=invalid, 2=no data
-    set +e
-    "${NODE_VALIDATOR_CMD[@]}" "$TMP_SCHEMA_FILE" "$FILE_TO_CHECK" < "$FILE_TO_CHECK"
-    exit_code=$?
-    set -e
-
-    if [[ $exit_code -eq 0 ]]; then
-      echo "OK: Alle Zeilen in '$FILE_TO_CHECK' sind valide."
-    elif [[ $exit_code -eq 2 ]]; then
-      if [[ "$REQUIRE_NONEMPTY" -eq 1 ]]; then
-        echo "❌ Keine Ereignisse zur Validierung in '$FILE_TO_CHECK' (REQUIRE_NONEMPTY=1)" >&2
-        status=1
-      else
-        echo "⚠️  Keine Ereignisse zur Validierung in '$FILE_TO_CHECK'" >&2
-      fi
-    else
-      # Exit code 1 or others mean validation failed (errors printed to stderr)
+    if ! validate_file "$FILE_TO_CHECK" "$FILE_TO_CHECK"; then
       status=1
     fi
   done
   exit $status
-
 elif [[ ${#FILES_TO_CHECK[@]} -eq 0 && ! -t 0 ]]; then
-  # Stdin-Modus
-  set +e
-  "${NODE_VALIDATOR_CMD[@]}" "$TMP_SCHEMA_FILE" "stdin"
-  exit_code=$?
-  set -e
-
-  if [[ $exit_code -eq 0 ]]; then
-    echo "OK: Stdin-Daten sind valide."
-  elif [[ $exit_code -eq 2 ]]; then
-    if [[ "$REQUIRE_NONEMPTY" -eq 1 ]]; then
-      echo "❌ Keine Daten auf stdin (REQUIRE_NONEMPTY=1)" >&2
-      exit 1
-    else
-      echo "⚠️  Keine Daten auf stdin erhalten." >&2
-    fi
-  else
+  # Stdin mode: read all of stdin to a temp file first
+  cat >"$TMP_EVENT_FILE"
+  if ! validate_file "$TMP_EVENT_FILE" "stdin"; then
     exit 1
   fi
   exit 0
