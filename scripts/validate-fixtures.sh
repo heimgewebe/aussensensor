@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SCHEMA_FILE="$1"
 SEARCH_DIR="$2"
 
@@ -39,8 +41,8 @@ need() {
 
 setup_ajv() {
   # Prioritize local node_modules for deterministic validation
-  if [[ -x "./node_modules/.bin/ajv" ]]; then
-    AJV_CMD=(./node_modules/.bin/ajv)
+  if [[ -x "$REPO_ROOT/node_modules/.bin/ajv" ]]; then
+    AJV_CMD=("$REPO_ROOT/node_modules/.bin/ajv")
     return 0
   fi
 
