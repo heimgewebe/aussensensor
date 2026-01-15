@@ -106,7 +106,12 @@ done
 # Prepare patched schema for ajv
 # ajv-cli (v5) has limited 2020-12 support. We patch $schema to draft-07 on-the-fly
 # to allow validation while keeping the source file in sync with metarepo (2020-12).
-sed 's|https://json-schema.org/draft/2020-12/schema|http://json-schema.org/draft-07/schema#|' "$SCHEMA_FILE" > "$TMP_SCHEMA_FILE"
+# Normalize both draft/2020-12 and any existing draft-07 URLs to use http:// (not https://)
+# to match AJV's internal meta-schema registration.
+sed \
+  -e 's|https://json-schema.org/draft/2020-12/schema|http://json-schema.org/draft-07/schema#|g' \
+  -e 's|https://json-schema.org/draft-07/schema#|http://json-schema.org/draft-07/schema#|g' \
+  "$SCHEMA_FILE" > "$TMP_SCHEMA_FILE"
 
 # Extract Schema ID to use in wrapper
 SCHEMA_ID="$(jq -r '."$id" // empty' "$TMP_SCHEMA_FILE")"

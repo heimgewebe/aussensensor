@@ -70,7 +70,12 @@ need sed
 # to allow validation while keeping the source file in sync with metarepo (2020-12).
 # This works because our schema doesn't use 2020-12-exclusive features.
 # If metarepo adds 2020-12-specific features later, consider upgrading to a newer ajv version.
-sed 's|https://json-schema.org/draft/2020-12/schema|http://json-schema.org/draft-07/schema#|' "$SCHEMA_FILE" > "$TMP_SCHEMA_FILE"
+# Normalize both draft/2020-12 and any existing draft-07 URLs to use http:// (not https://)
+# to match AJV's internal meta-schema registration.
+sed \
+  -e 's|https://json-schema.org/draft/2020-12/schema|http://json-schema.org/draft-07/schema#|g' \
+  -e 's|https://json-schema.org/draft-07/schema#|http://json-schema.org/draft-07/schema#|g' \
+  "$SCHEMA_FILE" > "$TMP_SCHEMA_FILE"
 
 # Find all JSONL files in the directory
 mapfile -t JSONL_FILES < <(find "$SEARCH_DIR" -name "*.jsonl" -type f)
@@ -126,8 +131,10 @@ for JSONL_FILE in "${JSONL_FILES[@]}"; do
         errors_found=$((errors_found + 1))
       fi
       echo "    Line $line_num: Validation failed"
-      # Show detailed error for this line
-      printf '%s\n' "      ${validation_output//$'\n'/$'\n'      }"
+      # Show detailed error for this line, indented
+      while IFS= read -r l; do
+        printf '      %s\n' "$l"
+      done <<<"$validation_output"
       invalid_lines=$((invalid_lines + 1))
     fi
   done < "$JSONL_FILE"
