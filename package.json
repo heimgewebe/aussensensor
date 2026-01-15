@@ -1,0 +1,14 @@
+{
+  "name": "aussensensor-contracts",
+  "version": "1.0.0",
+  "description": "Validation tooling for Aussensensor events",
+  "scripts": {
+    "validate": "./scripts/validate.sh",
+    "test": "./tests/run.sh"
+  },
+  "devDependencies": {
+    "ajv-cli": "^5.0.0",
+    "ajv-formats": "^2.1.1"
+  },
+  "private": true
+}
