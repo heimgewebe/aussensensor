@@ -108,7 +108,7 @@ for JSONL_FILE in "${JSONL_FILES[@]}"; do
     # --strict=false is a conscious policy choice. It relaxes some schema validation rules.
     # For this use case, it is primarily used to allow additional, undocumented properties,
     # which supports schema evolution and backward compatibility.
-    if ! "${AJV_CMD[@]}" validate -s "$TMP_SCHEMA_FILE" -d "$TMP_EVENT_FILE" --spec=draft7 --strict=false -c ajv-formats >/dev/null 2>&1; then
+    if ! validation_output=$("${AJV_CMD[@]}" validate -s "$TMP_SCHEMA_FILE" -d "$TMP_EVENT_FILE" --spec=draft7 --strict=false -c ajv-formats --errors=text 2>&1); then
       if [[ $file_has_errors -eq 0 ]]; then
         echo "  ❌ INVALID"
         file_has_errors=1
@@ -116,7 +116,7 @@ for JSONL_FILE in "${JSONL_FILES[@]}"; do
       fi
       echo "    Line $line_num: Validation failed"
       # Show detailed error for this line
-      "${AJV_CMD[@]}" validate -s "$TMP_SCHEMA_FILE" -d "$TMP_EVENT_FILE" --spec=draft7 --strict=false -c ajv-formats --errors=text 2>&1 | sed 's/^/      /'
+      echo "$validation_output" | sed 's/^/      /'
       invalid_lines=$((invalid_lines + 1))
     fi
   done < "$JSONL_FILE"

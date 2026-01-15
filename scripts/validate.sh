@@ -130,6 +130,10 @@ validate_file() {
   local has_errors=0
   local has_content=0
   local tmp_line_file="$(mktemp "${TMPDIR:-/tmp}/aussen_event.line.XXXXXX.json")"
+  local validation_output
+  
+  # Ensure cleanup of temp file
+  trap 'rm -f "$tmp_line_file"' RETURN
   
   while IFS= read -r line || [[ -n "$line" ]]; do
     line_num=$((line_num + 1))
@@ -148,18 +152,16 @@ validate_file() {
     # --strict=false is a conscious policy choice. It relaxes some schema validation rules.
     # For this use case, it is primarily used to allow additional, undocumented properties,
     # which supports schema evolution and backward compatibility.
-    if ! "${AJV_CMD[@]}" validate -s "$TMP_SCHEMA_FILE" -d "$tmp_line_file" --spec=draft7 --strict=false -c ajv-formats >/dev/null 2>&1; then
+    if ! validation_output=$("${AJV_CMD[@]}" validate -s "$TMP_SCHEMA_FILE" -d "$tmp_line_file" --spec=draft7 --strict=false -c ajv-formats --errors=text 2>&1); then
       if [[ $has_errors -eq 0 ]]; then
         echo "Fehler: Validierung fehlgeschlagen ($context)." >&2
         echo "Details:" >&2
         has_errors=1
       fi
       echo "Line $line_num:" >&2
-      "${AJV_CMD[@]}" validate -s "$TMP_SCHEMA_FILE" -d "$tmp_line_file" --spec=draft7 --strict=false -c ajv-formats --errors=text 2>&1 | sed 's/^/  /' >&2
+      echo "$validation_output" | sed 's/^/  /' >&2
     fi
   done < "$file_path"
-  
-  rm -f "$tmp_line_file"
   
   if [[ $has_content -eq 0 ]]; then
     if [[ "$REQUIRE_NONEMPTY" -eq 1 ]]; then
