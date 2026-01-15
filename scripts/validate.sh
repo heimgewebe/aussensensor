@@ -3,15 +3,16 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 SCHEMA_PATH="$REPO_ROOT/contracts/aussen.event.schema.json"
 REQUIRE_NONEMPTY="${REQUIRE_NONEMPTY:-0}"
 SCHEMA_FILE="${SCHEMA_FILE:-$SCHEMA_PATH}"
+
 TMP_SCHEMA_FILE="$(mktemp "${TMPDIR:-/tmp}/aussen_event.schema.XXXXXX.json")"
 TMP_DATA_FILE="$(mktemp "${TMPDIR:-/tmp}/aussen_event.data.XXXXXX.json")"
 WRAPPER_SCHEMA="$(mktemp "${TMPDIR:-/tmp}/aussen_event.wrapper.XXXXXX.json")"
 TMP_STDIN=""
 
-# shellcheck disable=SC2317  # cleanup is called via trap
 cleanup() {
   rm -f "$TMP_SCHEMA_FILE" "$TMP_DATA_FILE" "$WRAPPER_SCHEMA"
   if [[ -n "${TMP_STDIN:-}" ]]; then
@@ -28,52 +29,55 @@ need() {
 }
 
 setup_ajv() {
+  # 1) Repo-lokales node_modules (deterministisch)
+  if [[ -x "$REPO_ROOT/node_modules/.bin/ajv" ]]; then
+    AJV_CMD=("$REPO_ROOT/node_modules/.bin/ajv")
+    return 0
+  fi
+
+  # 2) npx mit gepinnten Versionen
+  if command -v npx >/dev/null 2>&1; then
+    AJV_CMD=(npx -y -p ajv-cli@5.0.0 -p ajv-formats@2.1.1 ajv)
+    return 0
+  fi
+
+  # 3) global ajv als letzter Ausweg
   if command -v ajv >/dev/null 2>&1; then
     AJV_CMD=(ajv)
     return 0
   fi
 
-  if command -v npx >/dev/null 2>&1; then
-    # Pin versions for stability and to match draft-07 requirements
-    AJV_CMD=(npx -y -p ajv-cli@5 -p ajv-formats@2 ajv)
-    return 0
-  fi
-
-  echo "Fehler: 'ajv' wird benötigt (weder lokal noch via 'npx' gefunden)." >&2
+  echo "Fehler: 'ajv' wird benötigt (weder repo-lokal, noch via npx, noch global gefunden)." >&2
   exit 1
+}
+
+print_usage() {
+  cat <<'USAGE' >&2
+Usage:
+  ./scripts/validate.sh [-s|--schema PATH] [file.jsonl ...]
+    Validiert jede Zeile der angegebenen Datei(en) (JSONL) als Array via jq -s.
+
+  <jsonl-producer> | ./scripts/validate.sh [-s|--schema PATH]
+    Validiert JSONL von stdin.
+
+Umgebungsvariablen:
+  REQUIRE_NONEMPTY=1      Fehler bei leeren Dateien oder leerem stdin.
+
+Beispiel:
+  ./scripts/validate.sh -s contracts/aussen.event.schema.json tests/fixtures/aussen/demo.jsonl
+USAGE
 }
 
 setup_ajv
 need sed
 need jq
 
-print_usage() {
-  cat <<'USAGE' >&2
-Usage:
-  ./scripts/validate.sh [-s|--schema PATH] [file.jsonl ...]
-    Validiert jede Zeile der angegebenen Datei(en).
-
-  <json-producer> | ./scripts/validate.sh [-s|--schema PATH]
-    Validiert das JSON-Objekt von stdin.
-
-Umgebungsvariablen:
-  REQUIRE_NONEMPTY=1      Fehler bei leeren Dateien oder leerem stdin.
-
-Beispiel:
-  ./scripts/validate.sh -s contracts/aussen.event.schema.json export/feed.jsonl
-USAGE
-}
-
-# --- Main --------------------------------------------------------------------
+# --- Args --------------------------------------------------------------------
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -s|--schema)
-      if [[ $# -lt 2 ]]; then
-        echo "Fehler: --schema benötigt einen Pfad." >&2
-        print_usage
-        exit 1
-      fi
+      [[ $# -ge 2 ]] || { echo "Fehler: --schema benötigt einen Pfad." >&2; print_usage; exit 1; }
       SCHEMA_FILE="$2"
       shift 2
       ;;
@@ -107,11 +111,10 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-# Prepare patched schema for ajv
-# ajv-cli (v5) has limited 2020-12 support. We patch $schema to draft-07 on-the-fly
-# to allow validation while keeping the source file in sync with metarepo (2020-12).
-# Normalize both draft/2020-12 and any existing draft-07 URLs to use http:// (not https://)
-# to match AJV's internal meta-schema registration.
+# --- Schema patching ----------------------------------------------------------
+# ajv-cli@5 hat begrenzte 2020-12 Unterstützung. Wir patchen $schema on-the-fly auf Draft-07.
+# Zusätzlich normalisieren wir Draft-07 meta-schema URLs auf http:// (nicht https://),
+# weil ajv-cli@5 das Meta-Schema typischerweise unter http:// registriert.
 sed \
   -e 's|https://json-schema.org/draft/2020-12/schema|http://json-schema.org/draft-07/schema#|g' \
   -e 's|https://json-schema.org/draft-07/schema#|http://json-schema.org/draft-07/schema#|g' \
@@ -124,7 +127,7 @@ if [[ -z "$SCHEMA_ID" ]]; then
   SCHEMA_ID="file://${TMP_SCHEMA_FILE}"
 fi
 
-# Create Wrapper Schema (Array of Items)
+# Wrapper Schema: Array of items referencing patched schema
 cat > "$WRAPPER_SCHEMA" <<EOF
 {
   "\$schema": "http://json-schema.org/draft-07/schema#",
@@ -133,33 +136,35 @@ cat > "$WRAPPER_SCHEMA" <<EOF
 }
 EOF
 
+# --- Validation ---------------------------------------------------------------
+
 validate_file() {
   local input_file="$1"
 
-  # Check if empty (bash check for 0 size)
+  # Empty file (0 bytes) => "no data"
   if [[ ! -s "$input_file" ]]; then
-    return 2 # Empty
+    return 2
   fi
 
-  # Slurp into array; jq fails on invalid JSON lines
+  # Slurp JSONL lines into array. jq fails if any non-JSON line exists.
   if ! jq -s . "$input_file" > "$TMP_DATA_FILE"; then
     echo "Fehler: Ungültiges JSON in '$input_file'." >&2
     return 1
   fi
 
-  # Treat "only whitespace" as empty data
+  # File may contain only whitespace/empty lines => array length 0
   local count
   count="$(jq length "$TMP_DATA_FILE")"
   if [[ "$count" -eq 0 ]]; then
     return 2
   fi
 
-  # Validate array against wrapper schema, with patched schema as referenced
+  # Validate array using wrapper schema; provide patched schema as referenced resource (-r)
   if ! "${AJV_CMD[@]}" validate \
-    -s "$WRAPPER_SCHEMA" \
-    -r "$TMP_SCHEMA_FILE" \
-    -d "$TMP_DATA_FILE" \
-    --spec=draft7 --strict=false -c ajv-formats >/dev/null; then
+      -s "$WRAPPER_SCHEMA" \
+      -r "$TMP_SCHEMA_FILE" \
+      -d "$TMP_DATA_FILE" \
+      --spec=draft7 --strict=false -c ajv-formats >/dev/null; then
 
     echo "Fehler: Validierung fehlgeschlagen in '$input_file'." >&2
     echo "Details:" >&2
@@ -177,57 +182,58 @@ validate_file() {
 status=0
 
 if [[ ${#FILES_TO_CHECK[@]} -gt 0 ]]; then
-  for FILE_TO_CHECK in "${FILES_TO_CHECK[@]}"; do
-    if [[ ! -f "$FILE_TO_CHECK" ]]; then
-      echo "Fehlt: $FILE_TO_CHECK" >&2
+  for f in "${FILES_TO_CHECK[@]}"; do
+    if [[ ! -f "$f" ]]; then
+      echo "Fehlt: $f" >&2
       status=1
       continue
     fi
 
     set +e
-    validate_file "$FILE_TO_CHECK"
+    validate_file "$f"
     exit_code=$?
     set -e
 
     if [[ $exit_code -eq 0 ]]; then
-      echo "OK: Alle Zeilen in '$FILE_TO_CHECK' sind valide."
+      echo "OK: '$f' ist valide."
     elif [[ $exit_code -eq 2 ]]; then
       if [[ "$REQUIRE_NONEMPTY" -eq 1 ]]; then
-        echo "❌ Keine Ereignisse zur Validierung in '$FILE_TO_CHECK' (REQUIRE_NONEMPTY=1)" >&2
+        echo "❌ Keine Ereignisse zur Validierung in '$f' (REQUIRE_NONEMPTY=1)" >&2
         status=1
       else
-        echo "⚠️  Keine Ereignisse zur Validierung in '$FILE_TO_CHECK'" >&2
+        echo "⚠️  Keine Ereignisse zur Validierung in '$f'" >&2
       fi
     else
       status=1
     fi
   done
   exit "$status"
+fi
 
-elif [[ ${#FILES_TO_CHECK[@]} -eq 0 && ! -t 0 ]]; then
-  # Stdin-Modus: jq -s braucht ein File
-  TMP_STDIN="$(mktemp "${TMPDIR:-/tmp}/aussen_stdin.XXXXXX.json")"
-  cat > "$TMP_STDIN"
-
-  set +e
-  validate_file "$TMP_STDIN"
-  exit_code=$?
-  set -e
-
-  if [[ $exit_code -eq 0 ]]; then
-    echo "OK: Stdin-Daten sind valide."
-  elif [[ $exit_code -eq 2 ]]; then
-    if [[ "$REQUIRE_NONEMPTY" -eq 1 ]]; then
-      echo "❌ Keine Daten auf stdin (REQUIRE_NONEMPTY=1)" >&2
-      exit 1
-    else
-      echo "⚠️  Keine Daten auf stdin erhalten." >&2
-    fi
-  else
-    exit 1
-  fi
-  exit 0
-else
+# stdin mode
+if [[ -t 0 ]]; then
   print_usage
+  exit 1
+fi
+
+TMP_STDIN="$(mktemp "${TMPDIR:-/tmp}/aussen_stdin.XXXXXX.jsonl")"
+cat > "$TMP_STDIN"
+
+set +e
+validate_file "$TMP_STDIN"
+exit_code=$?
+set -e
+
+if [[ $exit_code -eq 0 ]]; then
+  echo "OK: Stdin-Daten sind valide."
+elif [[ $exit_code -eq 2 ]]; then
+  if [[ "$REQUIRE_NONEMPTY" -eq 1 ]]; then
+    echo "❌ Keine Daten auf stdin (REQUIRE_NONEMPTY=1)" >&2
+    exit 1
+  else
+    echo "⚠️  Keine Daten auf stdin erhalten." >&2
+    exit 0
+  fi
+else
   exit 1
 fi
