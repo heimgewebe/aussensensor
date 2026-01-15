@@ -124,18 +124,58 @@ validate_file() {
     fi
   fi
 
-  # ajv can process a whole JSONL file at once.
-  # --strict=false is a conscious policy choice. It relaxes some schema validation rules.
-  # For this use case, it is primarily used to allow additional, undocumented properties,
-  # which supports schema evolution and backward compatibility.
-  if ! "${AJV_CMD[@]}" validate -s "$TMP_SCHEMA_FILE" -d "$file_path" --spec=draft7 --strict=false -c ajv-formats >/dev/null; then
-    echo "Fehler: Validierung fehlgeschlagen ($context)." >&2
-    echo "Details:" >&2
-    "${AJV_CMD[@]}" validate -s "$TMP_SCHEMA_FILE" -d "$file_path" --spec=draft7 --strict=false -c ajv-formats --errors=text
+  # Validate line by line for robust JSONL processing.
+  # ajv-cli's file mode doesn't reliably handle JSONL format, so we process each line individually.
+  local line_num=0
+  local has_errors=0
+  local has_content=0
+  local tmp_line_file="$(mktemp "${TMPDIR:-/tmp}/aussen_event.line.XXXXXX.json")"
+  
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line_num=$((line_num + 1))
+    
+    # Skip empty lines
+    if [[ -z "$line" ]]; then
+      continue
+    fi
+    
+    has_content=1
+    
+    # Write line to temp file for validation
+    echo "$line" > "$tmp_line_file"
+    
+    # Validate this single JSON object
+    # --strict=false is a conscious policy choice. It relaxes some schema validation rules.
+    # For this use case, it is primarily used to allow additional, undocumented properties,
+    # which supports schema evolution and backward compatibility.
+    if ! "${AJV_CMD[@]}" validate -s "$TMP_SCHEMA_FILE" -d "$tmp_line_file" --spec=draft7 --strict=false -c ajv-formats >/dev/null 2>&1; then
+      if [[ $has_errors -eq 0 ]]; then
+        echo "Fehler: Validierung fehlgeschlagen ($context)." >&2
+        echo "Details:" >&2
+        has_errors=1
+      fi
+      echo "Line $line_num:" >&2
+      "${AJV_CMD[@]}" validate -s "$TMP_SCHEMA_FILE" -d "$tmp_line_file" --spec=draft7 --strict=false -c ajv-formats --errors=text 2>&1 | sed 's/^/  /' >&2
+    fi
+  done < "$file_path"
+  
+  rm -f "$tmp_line_file"
+  
+  if [[ $has_content -eq 0 ]]; then
+    if [[ "$REQUIRE_NONEMPTY" -eq 1 ]]; then
+      echo "❌ Keine Ereignisse zur Validierung in '$context' (REQUIRE_NONEMPTY=1)" >&2
+      return 1
+    else
+      echo "⚠️  Keine Ereignisse zur Validierung in '$context'" >&2
+      return 0
+    fi
+  fi
+  
+  if [[ $has_errors -eq 1 ]]; then
     return 1
   fi
 
-  echo "OK: '$context' ist valide."
+  echo "OK: '$context' ist valide ($line_num lines)."
   return 0
 }
 
