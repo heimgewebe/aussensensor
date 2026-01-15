@@ -12,6 +12,11 @@ if [ -z "$SCHEMA_FILE" ] || [ -z "$SEARCH_DIR" ]; then
   exit 1
 fi
 
+if [ ! -f "$SCHEMA_FILE" ]; then
+  echo "Error: Schema file '$SCHEMA_FILE' not found."
+  exit 1
+fi
+
 if [ ! -d "$SEARCH_DIR" ]; then
   echo "Error: Directory '$SEARCH_DIR' not found."
   exit 1
