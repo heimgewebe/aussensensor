@@ -24,7 +24,7 @@ jobs:
           node-version: "20"
 
       - name: Install AJV CLI
-        run: npm install -g ajv-cli@5.0.0 ajv-formats
+        run: npm ci
 
       - name: Validate fixtures with AJV
         run: |
