@@ -4,25 +4,16 @@ set -euo pipefail
 # Set the tests directory
 TESTS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
-# Find the bats executable in the local clone
-BATS_EXEC="$TESTS_DIR/bats/bin/bats"
-
-# Ensure bats submodules are available
-if [[ ! -x "$BATS_EXEC" ]]; then
-  if command -v git >/dev/null 2>&1 && git -C "$TESTS_DIR/.." rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    git -C "$TESTS_DIR/.." submodule update --init --recursive
-  fi
-fi
-
-if [[ ! -x "$BATS_EXEC" ]]; then
-  if command -v bats >/dev/null 2>&1; then
-    BATS_EXEC="bats"
-  else
-    echo "bats executable not found (checked '$BATS_EXEC' and system PATH)." >&2
-    echo "Please install bats or run 'git submodule update --init --recursive'" >&2
-    exit 1
-  fi
+# Use system bats (no submodules)
+if ! command -v bats >/dev/null 2>&1; then
+  echo "Error: bats executable not found in PATH." >&2
+  echo "Please install bats (examples):" >&2
+  echo "  Debian/Ubuntu: sudo apt-get install bats (or: bats-core)" >&2
+  echo "  macOS (brew):  brew install bats-core" >&2
+  echo "  Arch:          sudo pacman -S bats" >&2
+  echo "  See also: https://bats-core.readthedocs.io/" >&2
+  exit 1
 fi
 
 # Run the tests
-"$BATS_EXEC" "$TESTS_DIR"/*.bats
+bats "$TESTS_DIR"/*.bats
