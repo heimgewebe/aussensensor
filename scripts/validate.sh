@@ -35,7 +35,7 @@ setup_ajv() {
     return 0
   fi
 
-  # 2) npx mit gepinnten Versionen
+  # 2) npx mit gepinnten Versionen (Fallback ohne lokale node_modules)
   if command -v npx >/dev/null 2>&1; then
     AJV_CMD=(npx -y -p ajv-cli@5.0.0 -p ajv-formats@2.1.1 ajv)
     return 0
