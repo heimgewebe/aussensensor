@@ -38,7 +38,7 @@ jobs:
 
       - name: Install ajv-cli for JSON Schema validation
         run: |
-          npm install -g ajv-cli ajv-formats
+          npm ci
 
       - name: Install bats-core
         run: |
