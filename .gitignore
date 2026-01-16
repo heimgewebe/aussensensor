@@ -1,6 +1,11 @@
 node_modules/
 .DS_Store
 
+# Bats test libraries (installed by CI, not submodules)
+tests/bats/
+tests/bats-support/
+tests/bats-assert/
+
 # Generated data
 export/*
 !export/feed.jsonl
