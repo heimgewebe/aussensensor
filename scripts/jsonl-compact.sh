@@ -14,8 +14,8 @@ fi
 tmp="$(mktemp "${TMPDIR:-/tmp}/jsonl_compact.${file##*/}.XXXX")"
 trap 'rm -f "$tmp"' EXIT
 
-# In kompaktes JSON (-c) konvertieren; invalide Eingabe bricht ab.
-jq -c . "$file" > "$tmp"
+# In kompaktes JSON (-c) konvertieren; nur Objekte erlaubt.
+jq -c 'objects' "$file" > "$tmp"
 
 mv -f "$tmp" "$file"
 echo "compacted: $file"
