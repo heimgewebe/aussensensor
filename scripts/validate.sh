@@ -29,7 +29,7 @@ need() {
 }
 
 setup_ajv() {
-  # 1) Repo-lokales node_modules (deterministisch)
+  # 1) Repository-lokales node_modules (deterministisch)
   if [[ -x "$REPO_ROOT/node_modules/.bin/ajv" ]]; then
     AJV_CMD=("$REPO_ROOT/node_modules/.bin/ajv")
     return 0
@@ -41,13 +41,13 @@ setup_ajv() {
     return 0
   fi
 
-  # 3) global ajv als letzter Ausweg
+  # 3) Globales ajv als letzter Ausweg
   if command -v ajv >/dev/null 2>&1; then
     AJV_CMD=(ajv)
     return 0
   fi
 
-  echo "Fehler: 'ajv' wird benötigt (weder repo-lokal, noch via npx, noch global gefunden)." >&2
+  echo "Fehler: 'ajv' wird benötigt (weder repository-lokal, noch via npx, noch global gefunden)." >&2
   exit 1
 }
 
@@ -55,10 +55,11 @@ print_usage() {
   cat <<'USAGE' >&2
 Usage:
   ./scripts/validate.sh [-s|--schema PATH] [file.jsonl ...]
-    Validiert jede Zeile der angegebenen Datei(en) (JSONL) als Array via jq -s.
+    Validiert JSONL-Datei(en), indem alle JSON-Zeilen via `jq -s` zu einem Array
+    zusammengeführt und als Ganzes gegen ein Wrapper-Schema geprüft werden.
 
   <jsonl-producer> | ./scripts/validate.sh [-s|--schema PATH]
-    Validiert JSONL von stdin.
+    Validiert JSONL von stdin (ebenfalls via Array-Zusammenführung).
 
 Umgebungsvariablen:
   REQUIRE_NONEMPTY=1      Fehler bei leeren Dateien oder leerem stdin.
