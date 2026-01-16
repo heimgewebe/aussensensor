@@ -17,5 +17,5 @@ trap 'rm -f "$tmp"' EXIT
 # In kompaktes JSON (-c) konvertieren; invalide Eingabe bricht ab.
 jq -c . "$file" > "$tmp"
 
-mv -f -- "$tmp" "$file"
+mv -f "$tmp" "$file"
 echo "compacted: $file"
