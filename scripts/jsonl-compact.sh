@@ -14,11 +14,8 @@ fi
 tmp="$(mktemp "${TMPDIR:-/tmp}/jsonl_compact.${file##*/}.XXXX")"
 trap 'rm -f "$tmp"' EXIT
 
-# Zeilenweise lesen, in kompaktes JSON (-c) konvertieren; invalide Zeilen brechen ab.
-while IFS= read -r line || [[ -n "$line" ]]; do
-  [[ -n "${line// /}" ]] || continue
-  printf '%s\n' "$line" | jq -e -c . >>"$tmp"
-done <"$file"
+# In kompaktes JSON (-c) konvertieren; nur Objekte erlaubt, sonst Fehler.
+jq -c 'if type == "object" then . else "jsonl-compact: non-object encountered (expected per-line object)" | halt_error(1) end' "$file" > "$tmp"
 
-mv -f -- "$tmp" "$file"
+mv -f "$tmp" "$file"
 echo "compacted: $file"
