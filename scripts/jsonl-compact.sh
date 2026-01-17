@@ -14,8 +14,8 @@ fi
 tmp="$(mktemp "${TMPDIR:-/tmp}/jsonl_compact.${file##*/}.XXXX")"
 trap 'rm -f "$tmp"' EXIT
 
-# In kompaktes JSON (-c) konvertieren; nur Objekte erlaubt.
-jq -c 'objects' "$file" > "$tmp"
+# In kompaktes JSON (-c) konvertieren; nur Objekte erlaubt, sonst Fehler.
+jq -c 'if type == "object" then . else "Input line is not a JSON object" | halt_error(1) end' "$file" > "$tmp"
 
 mv -f "$tmp" "$file"
 echo "compacted: $file"
