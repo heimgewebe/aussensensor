@@ -4,7 +4,7 @@ Ein leichtgewichtiges Rust-CLI-Tool zum Übertragen von NDJSON-Ereignissen an di
 
 ## Zweck
 
-`aussensensor-push` ist ein optionales Hilfsprogramm, das von den Bash-Skripten `push_chronik.sh` und `push_heimlern.sh` automatisch verwendet wird, falls es installiert ist. Es bietet:
+`aussensensor-push` ist ein optionales Hilfsprogramm, das von den Bash-Skripten `push_chronik.sh` und `push_heimlern.sh` (deprecated) automatisch verwendet wird, falls es installiert ist. Es bietet:
 
 - Robuste NDJSON-Verarbeitung
 - Korrekte Content-Type-Header (`application/x-ndjson`)

@@ -26,14 +26,15 @@ if ! ALLOWED="$(normalize_bool "$ALLOW_HEIMLERN_MVP")"; then
 fi
 
 if [[ "$ALLOWED" != "1" ]]; then
-  echo "FEHLER: Dieses Skript ist deprecated und wird bald entfernt (Plan: v2.0 / Q4 2024)." >&2
+  echo "FEHLER: Dieses Skript ist deprecated und wird bald entfernt (Pending replacement by Chronik Pull)." >&2
   echo "Bitte nutze stattdessen 'scripts/push_chronik.sh' (Zielarchitektur)." >&2
   echo "Um diesen Legacy-Pfad dennoch zu nutzen, setze ALLOW_HEIMLERN_MVP=1." >&2
   exit 2
 fi
 
 # In CI environments, enforce a second lock to prevent accidental reactivation
-if [[ "${CI:-}" == "true" ]]; then
+# Check if CI is set to anything non-empty
+if [[ -n "${CI:-}" ]]; then
   if ! ALLOWED_CI="$(normalize_bool "$ALLOW_HEIMLERN_MVP_CI")"; then
      echo "Ungültiger Wert für ALLOW_HEIMLERN_MVP_CI: $ALLOW_HEIMLERN_MVP_CI" >&2
      exit 1

@@ -170,6 +170,8 @@ Weitere Details und Entscheidungen sind in den [Architecture Decision Records](d
 
 Dieses Repository ist Teil des **Heimgewebe-Organismus**.
 
+**Single Source of Truth:** `metarepo/contracts/consumers.yaml` + ADRs.
+
 Die übergeordnete Architektur, Achsen, Rollen und Contracts sind zentral beschrieben im
 👉 [`metarepo/docs/heimgewebe-organismus.md`](https://github.com/heimgewebe/metarepo/blob/main/docs/heimgewebe-organismus.md)
 sowie im Zielbild
