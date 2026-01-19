@@ -9,10 +9,10 @@ aussensensor kuratiert externe Informationsquellen (Newsfeeds, Wetter, Lagebilde
 - **Zielgruppe:** Operator:innen und Analyst:innen, die ein konsolidiertes Lagebild benötigen.
 - **Einordnung:** aussensensor dient als vorgelagerter Kurationspunkt für externe Quellen und beliefert die Chronik über die `/ingest/aussen`-Schnittstelle.
 - **Datenfluss:**
-  **MVP (heute)**: aussensensor → direkt **heimlern** **und** → **chronik**  
-  **Zielbild**: aussensensor → **nur** chronik `/v1/ingest`; Consumer lesen von dort (Stream/Webhook)
+  **Zielbild (Standard)**: aussensensor → **nur** chronik `/v1/ingest`; Consumer lesen von dort (Stream/Webhook)
+  **Legacy (deprecated)**: aussensensor → direkt **heimlern** (wird abgeschaltet).
 
-  > Hinweis: Skripte sind entsprechend markiert. Bevorzugter Pfad: **chronik**.
+  > Hinweis: Der direkte Heimlern-Pfad ist deprecated. Bevorzugter Pfad: **chronik**.
 Architekturentscheidungen, die zu diesem Design führten, sind in den [ADRs](docs/adr/README.md) dokumentiert.
 
 ## Komponentenüberblick
@@ -22,7 +22,7 @@ Architekturentscheidungen, die zu diesem Design führten, sind in den [ADRs](doc
 | `scripts/validate.sh` | Validiert eine JSONL-Datei gegen das Schema. |
 | `scripts/jsonl-compact.sh` | Kompaktifiziert JSONL-Dateien, indem jede Zeile als einzelnes JSON-Objekt formatiert wird. |
 | `scripts/push_chronik.sh` | Überträgt den kompletten Feed an die Chronik-Ingest-API oder führt einen Dry-Run aus. |
-| `scripts/push_heimlern.sh` | Stößt den Push des Feeds an die Heimlern-Ingest-API an. |
+| `scripts/push_heimlern.sh` | (Deprecated) Stößt den Push des Feeds an die Heimlern-Ingest-API an. |
 | `contracts/aussen.event.schema.json` | JSON-Schema des Ereignisformats (Contract). |
 | `export/feed.jsonl` | Sammeldatei aller kuratierten Ereignisse. |
 
@@ -68,8 +68,10 @@ Siehe [docs/runbook.md](docs/runbook.md). CI validiert `export/feed.jsonl` gegen
 Bei Eingabefehlern bricht das Skript mit einem nicht-null Exit-Code ab. Bereits vorhandene Einträge bleiben unverändert.
 
 ### Push
-Bevorzugt: `scripts/push_chronik.sh` (Zielarchitektur).  
-MVP-Pfad (vorübergehend): `scripts/push_heimlern.sh` (direkter Push).
+Standard: `scripts/push_chronik.sh` (Zielarchitektur).
+
+Legacy (Deprecated): `scripts/push_heimlern.sh`.
+> **Achtung**: Dieses Skript ist deprecated und erfordert `ALLOW_HEIMLERN_MVP=1`.
 
 Optional steht ein kleines Binary `aussensensor-push` bereit (Rust),
 das NDJSON korrekt an `/v1/ingest` sendet. Die Skripte nutzen es,
@@ -161,8 +163,8 @@ Beispiel (lokal):
 Weitere Details und Entscheidungen sind in den [Architecture Decision Records](docs/adr/README.md) dokumentiert.
 
 ## MVP vs. Zielpfad
-- **MVP:** `scripts/push_heimlern.sh` (Direkt-Push) – temporär.
-- **Ziel:** `scripts/push_chronik.sh` (nur chronik ingest) – bitte bevorzugen.
+- **Legacy:** `scripts/push_heimlern.sh` (Direkt-Push) – DEPRECATED.
+- **Ziel:** `scripts/push_chronik.sh` (nur chronik ingest) – Standard.
 
 ## Organismus-Kontext
 

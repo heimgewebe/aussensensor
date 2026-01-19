@@ -8,6 +8,27 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DEFAULT_FILE="$REPO_ROOT/export/feed.jsonl"
 CONTENT_TYPE="${CONTENT_TYPE:-application/x-ndjson}"
 DRY_RUN="${DRY_RUN:-0}"
+ALLOW_HEIMLERN_MVP="${ALLOW_HEIMLERN_MVP:-0}"
+
+normalize_bool() {
+  case "${1:-}" in
+  1 | true | yes | on) printf '1' ;;
+  0 | false | no | off | '') printf '0' ;;
+  *) return 1 ;;
+  esac
+}
+
+if ! ALLOWED="$(normalize_bool "$ALLOW_HEIMLERN_MVP")"; then
+  echo "Ungültiger Wert für ALLOW_HEIMLERN_MVP: $ALLOW_HEIMLERN_MVP" >&2
+  exit 1
+fi
+
+if [[ "$ALLOWED" != "1" ]]; then
+  echo "FEHLER: Dieses Skript ist deprecated und wird bald entfernt." >&2
+  echo "Bitte nutze stattdessen 'scripts/push_chronik.sh' (Zielarchitektur)." >&2
+  echo "Um diesen Legacy-Pfad dennoch zu nutzen, setze ALLOW_HEIMLERN_MVP=1." >&2
+  exit 2
+fi
 
 need() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -20,6 +41,9 @@ print_usage() {
   cat <<USAGE >&2
 Usage: scripts/push_heimlern.sh [options] [feed.jsonl]
 
+DEPRECATED: Nutzen Sie scripts/push_chronik.sh.
+Aktivierung nur mit ALLOW_HEIMLERN_MVP=1 möglich.
+
 Options:
   --content-type TYPE  Content-Type Header (Standard: ${CONTENT_TYPE})
   --dry-run             Nur Validierung, ohne Request (auch via DRY_RUN=1)
@@ -29,15 +53,8 @@ Environment:
   HEIMLERN_INGEST_URL  Ziel-Endpoint (Pflicht)
   CONTENT_TYPE         Content-Type Header, falls --content-type fehlt
   DRY_RUN              Setze auf 1/true/yes/on für einen Dry-Run
+  ALLOW_HEIMLERN_MVP   Setze auf 1, um dieses Skript auszuführen
 USAGE
-}
-
-normalize_bool() {
-  case "${1:-}" in
-  1 | true | yes | on) printf '1' ;;
-  0 | false | no | off | '') printf '0' ;;
-  *) return 1 ;;
-  esac
 }
 
 FILE=""
