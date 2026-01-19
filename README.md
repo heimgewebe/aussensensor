@@ -9,7 +9,7 @@ aussensensor kuratiert externe Informationsquellen (Newsfeeds, Wetter, Lagebilde
 - **Zielgruppe:** Operator:innen und Analyst:innen, die ein konsolidiertes Lagebild benötigen.
 - **Einordnung:** aussensensor dient als vorgelagerter Kurationspunkt für externe Quellen und beliefert die Chronik über die `/ingest/aussen`-Schnittstelle.
 - **Datenfluss:**
-  **Zielbild (Standard)**: aussensensor → **nur** chronik `/v1/ingest`; Consumer lesen von dort (Pull; Stream/Webhook geplant)
+  **Zielbild (Standard)**: aussensensor → **nur** chronik `/v1/ingest`; Zustellung erfolgt via Plexer/Chronik gemäß `contracts/consumers.yaml`.
   **Legacy (deprecated)**: aussensensor → direkt **heimlern** (wird abgeschaltet).
 
   > Hinweis: Der direkte Heimlern-Pfad ist deprecated. Bevorzugter Pfad: **chronik**.
@@ -171,6 +171,7 @@ Weitere Details und Entscheidungen sind in den [Architecture Decision Records](d
 Dieses Repository ist Teil des **Heimgewebe-Organismus**.
 
 **Single Source of Truth:** `heimgewebe/metarepo` (`contracts/` + `contracts/consumers.yaml`). ADRs dokumentieren Entscheidungen, sind nicht SSOT.
+aussensensor agiert als reiner Producer von Events; die Zustellung und das Routing an Consumer (wie Heimlern, Heimgeist etc.) obliegt dem Plexer/Chronik-Subsystem basierend auf den zentralen Contracts.
 
 Die übergeordnete Architektur, Achsen, Rollen und Contracts sind zentral beschrieben im
 👉 [`metarepo/docs/heimgewebe-organismus.md`](https://github.com/heimgewebe/metarepo/blob/main/docs/heimgewebe-organismus.md)
