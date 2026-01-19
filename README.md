@@ -72,6 +72,7 @@ Standard: `scripts/push_chronik.sh` (Zielarchitektur).
 
 Legacy (Deprecated): `scripts/push_heimlern.sh`.
 > **Achtung**: Dieses Skript ist deprecated und erfordert `ALLOW_HEIMLERN_MVP=1`.
+> Es beendet sich mit Exit Code 2, wenn das Gate nicht explizit geöffnet ist.
 
 Optional steht ein kleines Binary `aussensensor-push` bereit (Rust),
 das NDJSON korrekt an `/v1/ingest` sendet. Die Skripte nutzen es,
