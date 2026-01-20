@@ -1,1 +1,1 @@
-{"ts":"2025-01-01T00:00:00Z","type":"news","source":"fixture","title":"Demo Fixture","summary":"","url":"https://example.com/demo-fixture","tags":[]}
+{"ts":"2025-01-01T00:00:00Z","type":"news","source":"fixture","title":"Demo Fixture","summary":"","url":"https://example.com/demo-fixture","tags":[],"schema_ref":"https://schemas.heimgewebe.org/contracts/aussen.event.schema.json","sha":"sha256:d8d9ee7fc33a3bd188442e05560696b636a76d7cac3df366b1beae90fd933a8f"}
