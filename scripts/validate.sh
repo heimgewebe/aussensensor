@@ -121,6 +121,18 @@ sed \
   -e 's|https://json-schema.org/draft-07/schema#|http://json-schema.org/draft-07/schema#|g' \
   "$SCHEMA_FILE" > "$TMP_SCHEMA_FILE"
 
+# PATCH: Inject local requirements (sha, schema_ref) if checking the aussen event schema.
+# This allows the local repo to be stricter/evolutionary while keeping the contract file in sync with metarepo.
+CHECK_ID="$(jq -r '."$id" // empty' "$TMP_SCHEMA_FILE")"
+if [[ "$CHECK_ID" == "https://schemas.heimgewebe.org/contracts/aussen.event.schema.json" ]]; then
+  TMP_PATCHED="$(mktemp "${TMPDIR:-/tmp}/aussen_patched.XXXXXX.json")"
+  jq '.properties += {
+        "sha": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "schema_ref": {"type": "string", "format": "uri"}
+      } | .required += ["sha", "schema_ref"]' "$TMP_SCHEMA_FILE" > "$TMP_PATCHED"
+  mv "$TMP_PATCHED" "$TMP_SCHEMA_FILE"
+fi
+
 # Extract Schema ID to use in wrapper
 SCHEMA_ID="$(jq -r '."$id" // empty' "$TMP_SCHEMA_FILE")"
 if [[ -z "$SCHEMA_ID" ]]; then
