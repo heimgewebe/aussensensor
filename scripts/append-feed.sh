@@ -289,9 +289,8 @@ build_json() {
       tags_json="$(printf '%s\n' "${tags_array[@]}" | jq -R . | jq -s .)"
   fi
 
-  # 1. Build partial object with schema_ref
-  local json_partial
-  json_partial=$(jq -cn \
+  # Build base object
+  jq -cn \
     --arg ts "$ts" \
     --arg type "$type" \
     --arg source "$source" \
@@ -299,35 +298,14 @@ build_json() {
     --arg summary "${summary:-}" \
     --arg url "${url:-}" \
     --argjson tags "$tags_json" \
-    --arg schema_ref "https://schemas.heimgewebe.org/contracts/aussen.event.schema.json" \
     '{
-      "schema_ref": $schema_ref,
       "ts": $ts,
       "type": $type,
       "source": $source,
       "title": $title,
       "summary": ($summary // ""),
       "tags": ($tags // [])
-    } + (if $url != "" then {"url": $url} else {} end)')
-
-  # 2. Canonicalize & Calculate SHA-256
-  #    Using sha256sum (preferred) or openssl or python3
-  local sha_hex=""
-  if have sha256sum; then
-    sha_hex=$(echo -n "$json_partial" | jq -c -S . | sha256sum | awk '{print $1}')
-  elif have shasum; then
-    sha_hex=$(echo -n "$json_partial" | jq -c -S . | shasum -a 256 | awk '{print $1}')
-  elif have openssl; then
-    sha_hex=$(echo -n "$json_partial" | jq -c -S . | openssl dgst -sha256 | sed 's/^.* //')
-  elif have python3; then
-    sha_hex=$(echo -n "$json_partial" | jq -c -S . | python3 -c 'import sys, hashlib; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())')
-  else
-    echo "Fehler: Kein SHA-256 Tool gefunden (sha256sum, shasum, openssl, python3)" >&2
-    exit 1
-  fi
-
-  # 3. Add sha field
-  echo "$json_partial" | jq -c --arg sha "sha256:$sha_hex" '. + {sha: $sha}'
+    } + (if $url != "" then {"url": $url} else {} end)'
 }
 
 validate_json_schema() {
