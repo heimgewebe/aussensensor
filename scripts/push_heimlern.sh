@@ -8,6 +8,43 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DEFAULT_FILE="$REPO_ROOT/export/feed.jsonl"
 CONTENT_TYPE="${CONTENT_TYPE:-application/x-ndjson}"
 DRY_RUN="${DRY_RUN:-0}"
+ALLOW_HEIMLERN_MVP="${ALLOW_HEIMLERN_MVP:-0}"
+# Safety override for CI environments (double-lock)
+ALLOW_HEIMLERN_MVP_CI="${ALLOW_HEIMLERN_MVP_CI:-0}"
+
+normalize_bool() {
+  case "${1:-}" in
+  1 | true | yes | on) printf '1' ;;
+  0 | false | no | off | '') printf '0' ;;
+  *) return 1 ;;
+  esac
+}
+
+if ! ALLOWED="$(normalize_bool "$ALLOW_HEIMLERN_MVP")"; then
+  echo "Ungültiger Wert für ALLOW_HEIMLERN_MVP: $ALLOW_HEIMLERN_MVP" >&2
+  exit 1
+fi
+
+if [[ "$ALLOWED" != "1" ]]; then
+  echo "FEHLER: Dieses Skript ist deprecated und wird bald entfernt." >&2
+  echo "Wird entfernt; Ersatz ist der Chronik-Ingest-Pfad via scripts/push_chronik.sh (Consumer Pull erfolgt downstream)." >&2
+  echo "Um diesen Legacy-Pfad dennoch zu nutzen, setze ALLOW_HEIMLERN_MVP=1." >&2
+  exit 2
+fi
+
+# In CI environments, enforce a second lock to prevent accidental reactivation
+if [[ "$(normalize_bool "${CI:-0}")" == "1" ]]; then
+  if ! ALLOWED_CI="$(normalize_bool "$ALLOW_HEIMLERN_MVP_CI")"; then
+    echo "Ungültiger Wert für ALLOW_HEIMLERN_MVP_CI: $ALLOW_HEIMLERN_MVP_CI" >&2
+     exit 1
+  fi
+  if [[ "$ALLOWED_CI" != "1" ]]; then
+    echo "FEHLER: Ausführung in CI blockiert (Double-Lock)." >&2
+    echo "Bitte nutze 'scripts/push_chronik.sh'." >&2
+    echo "Für Legacy-Nutzung in CI: Setze zusätzlich ALLOW_HEIMLERN_MVP_CI=1." >&2
+    exit 2
+  fi
+fi
 
 need() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -20,6 +57,14 @@ print_usage() {
   cat <<USAGE >&2
 Usage: scripts/push_heimlern.sh [options] [feed.jsonl]
 
+DEPRECATED: Bitte nutze scripts/push_chronik.sh.
+Aktivierung nur mit ALLOW_HEIMLERN_MVP=1 möglich.
+
+Exit Codes:
+  0  Erfolg (oder Dry-Run OK)
+  1  Allgemeiner Fehler (Konfiguration, fehlende Tools, Netzwerk)
+  2  Deprecated/Blockiert (Gate hit - kein technischer Fehler, sondern bewusst blockiert)
+
 Options:
   --content-type TYPE  Content-Type Header (Standard: ${CONTENT_TYPE})
   --dry-run             Nur Validierung, ohne Request (auch via DRY_RUN=1)
@@ -29,15 +74,9 @@ Environment:
   HEIMLERN_INGEST_URL  Ziel-Endpoint (Pflicht)
   CONTENT_TYPE         Content-Type Header, falls --content-type fehlt
   DRY_RUN              Setze auf 1/true/yes/on für einen Dry-Run
+  ALLOW_HEIMLERN_MVP   Setze auf 1, um dieses Skript auszuführen
+  ALLOW_HEIMLERN_MVP_CI Setze auf 1, um CI-Blockade zu umgehen (wenn CI=true)
 USAGE
-}
-
-normalize_bool() {
-  case "${1:-}" in
-  1 | true | yes | on) printf '1' ;;
-  0 | false | no | off | '') printf '0' ;;
-  *) return 1 ;;
-  esac
 }
 
 FILE=""
