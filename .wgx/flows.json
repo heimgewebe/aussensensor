@@ -1,0 +1,8 @@
+{
+  "artifacts": [
+    {
+      "path": "export/feed.jsonl",
+      "contract": "https://schemas.heimgewebe.org/contracts/aussen.event.schema.json"
+    }
+  ]
+}
