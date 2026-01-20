@@ -27,7 +27,7 @@ fi
 
 if [[ "$ALLOWED" != "1" ]]; then
   echo "FEHLER: Dieses Skript ist deprecated und wird bald entfernt." >&2
-  echo "Pending removal; replacement is Chronik ingest-only path via scripts/push_chronik.sh (consumer pull happens downstream)." >&2
+  echo "Wird entfernt; Ersatz ist der Chronik-Ingest-Pfad via scripts/push_chronik.sh (Consumer Pull erfolgt downstream)." >&2
   echo "Um diesen Legacy-Pfad dennoch zu nutzen, setze ALLOW_HEIMLERN_MVP=1." >&2
   exit 2
 fi
@@ -63,7 +63,7 @@ Aktivierung nur mit ALLOW_HEIMLERN_MVP=1 möglich.
 Exit Codes:
   0  Erfolg (oder Dry-Run OK)
   1  Allgemeiner Fehler (Konfiguration, fehlende Tools, Netzwerk)
-  2  Deprecated/Blockiert (Gate hit)
+  2  Deprecated/Blockiert (Gate hit - kein technischer Fehler, sondern bewusst blockiert)
 
 Options:
   --content-type TYPE  Content-Type Header (Standard: ${CONTENT_TYPE})
