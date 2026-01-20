@@ -35,7 +35,7 @@ fi
 # In CI environments, enforce a second lock to prevent accidental reactivation
 if [[ "$(normalize_bool "${CI:-0}")" == "1" ]]; then
   if ! ALLOWED_CI="$(normalize_bool "$ALLOW_HEIMLERN_MVP_CI")"; then
-     echo "Ungültiger Wert für ALLOW_HEIMLERN_MVP_CI: $ALLOW_HEIMLERN_MVP_CI" >&2
+    echo "Ungültiger Wert für ALLOW_HEIMLERN_MVP_CI: $ALLOW_HEIMLERN_MVP_CI" >&2
      exit 1
   fi
   if [[ "$ALLOWED_CI" != "1" ]]; then
