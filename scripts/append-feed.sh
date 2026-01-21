@@ -26,6 +26,7 @@ need() {
     exit 1
   fi
 }
+
 # Generiert eine eindeutige ID für temporäre Dateinamen.
 # Hinweis: Format variiert je nach Tool (UUID vs. Hex-String), ist aber für diesen Zweck hinreichend kollisionssicher.
 tmp_id() {
@@ -39,6 +40,7 @@ tmp_id() {
     echo "$RANDOM-$RANDOM-$$-$(date +%s)"
   fi
 }
+
 safe_mktemp() { mktemp "${TMPDIR:-/tmp}/aussen_append.$(tmp_id).XXXXXX"; }
 
 cleanup() {
@@ -80,90 +82,86 @@ parse_args() {
   local tags_raw=""
   local output_arg=""
 
-  # Flags flag tracking to handle mixed usage if needed,
-  # but typically we either use flags or purely positional.
-  # We'll allow flags to override defaults, and positional args to fill gaps if flags aren't used for them.
-
   declare -a positional=()
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-    -h | --help)
-      print_usage
-      exit 0
-      ;;
-    -o | --output)
-      [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
-      output_arg="$2"
-      shift 2
-      ;;
-    --output=*)
-      output_arg="${1#*=}"
-      shift
-      ;;
-    -t | --type)
-      [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
-      type_arg="$2"
-      shift 2
-      ;;
-    --type=*)
-      type_arg="${1#*=}"
-      shift
-      ;;
-    -s | --source)
-      [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
-      source_arg="$2"
-      shift 2
-      ;;
-    --source=*)
-      source_arg="${1#*=}"
-      shift
-      ;;
-    -T | --title)
-      [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
-      title_arg="$2"
-      shift 2
-      ;;
-    --title=*)
-      title_arg="${1#*=}"
-      shift
-      ;;
-    -S | --summary)
-      [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
-      summary_arg="$2"
-      shift 2
-      ;;
-    --summary=*)
-      summary_arg="${1#*=}"
-      shift
-      ;;
-    -u | --url)
-      [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
-      url_arg="$2"
-      shift 2
-      ;;
-    --url=*)
-      url_arg="${1#*=}"
-      shift
-      ;;
-    -g | --tags)
-      [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
-      tags_raw="$2"
-      shift 2
-      ;;
-    --tags=*)
-      tags_raw="${1#*=}"
-      shift
-      ;;
-    -*)
-      echo "Unbekannte Option: $1" >&2
-      print_usage
-      exit 1
-      ;;
-    *)
-      positional+=("$1")
-      shift
-      ;;
+      -h|--help)
+        print_usage
+        exit 0
+        ;;
+      -o|--output)
+        [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
+        output_arg="$2"
+        shift 2
+        ;;
+      --output=*)
+        output_arg="${1#*=}"
+        shift
+        ;;
+      -t|--type)
+        [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
+        type_arg="$2"
+        shift 2
+        ;;
+      --type=*)
+        type_arg="${1#*=}"
+        shift
+        ;;
+      -s|--source)
+        [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
+        source_arg="$2"
+        shift 2
+        ;;
+      --source=*)
+        source_arg="${1#*=}"
+        shift
+        ;;
+      -T|--title)
+        [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
+        title_arg="$2"
+        shift 2
+        ;;
+      --title=*)
+        title_arg="${1#*=}"
+        shift
+        ;;
+      -S|--summary)
+        [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
+        summary_arg="$2"
+        shift 2
+        ;;
+      --summary=*)
+        summary_arg="${1#*=}"
+        shift
+        ;;
+      -u|--url)
+        [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
+        url_arg="$2"
+        shift 2
+        ;;
+      --url=*)
+        url_arg="${1#*=}"
+        shift
+        ;;
+      -g|--tags)
+        [[ $# -ge 2 ]] || { echo "Fehler: Fehlender Parameter für $1" >&2; exit 1; }
+        tags_raw="$2"
+        shift 2
+        ;;
+      --tags=*)
+        tags_raw="${1#*=}"
+        shift
+        ;;
+      -*)
+        echo "Unbekannte Option: $1" >&2
+        print_usage
+        exit 1
+        ;;
+      *)
+        positional+=("$1")
+        shift
+        ;;
     esac
   done
 
@@ -177,58 +175,59 @@ parse_args() {
 
   # Handle positional arguments if flags were not sufficient or strictly positional mode
   if [[ ${#positional[@]} -gt 0 ]]; then
-      local pos_idx=0
+    local pos_idx=0
 
-      if [[ -z "$source_arg" && $pos_idx -lt ${#positional[@]} ]]; then
-          source="${positional[$pos_idx]}"
-          ((pos_idx++)) || true
-      fi
-      if [[ -z "$type_arg" && $pos_idx -lt ${#positional[@]} ]]; then
-          type="${positional[$pos_idx]}"
-          ((pos_idx++)) || true
-      fi
-      if [[ -z "$title_arg" && $pos_idx -lt ${#positional[@]} ]]; then
-          title="${positional[$pos_idx]}"
-          ((pos_idx++)) || true
-      fi
-      if [[ -z "$summary_arg" && $pos_idx -lt ${#positional[@]} ]]; then
-          summary="${positional[$pos_idx]}"
-          ((pos_idx++)) || true
-      fi
-      if [[ -z "$url_arg" && $pos_idx -lt ${#positional[@]} ]]; then
-          url="${positional[$pos_idx]}"
-          ((pos_idx++)) || true
-      fi
+    if [[ -z "$source_arg" && $pos_idx -lt ${#positional[@]} ]]; then
+      source="${positional[$pos_idx]}"
+      ((pos_idx++)) || true
+    fi
+    if [[ -z "$type_arg" && $pos_idx -lt ${#positional[@]} ]]; then
+      type="${positional[$pos_idx]}"
+      ((pos_idx++)) || true
+    fi
+    if [[ -z "$title_arg" && $pos_idx -lt ${#positional[@]} ]]; then
+      title="${positional[$pos_idx]}"
+      ((pos_idx++)) || true
+    fi
+    if [[ -z "$summary_arg" && $pos_idx -lt ${#positional[@]} ]]; then
+      summary="${positional[$pos_idx]}"
+      ((pos_idx++)) || true
+    fi
+    if [[ -z "$url_arg" && $pos_idx -lt ${#positional[@]} ]]; then
+      url="${positional[$pos_idx]}"
+      ((pos_idx++)) || true
+    fi
 
-      # Verbleibende Argumente sind Tags (ohne leere/whitespace Tags)
-      while [[ $pos_idx -lt ${#positional[@]} ]]; do
-          local tag="${positional[$pos_idx]}"
-          [[ -n "${tag// /}" ]] && tags_array+=("$tag")
-          ((pos_idx++)) || true
-      done
+    # Verbleibende Argumente sind Tags (ohne leere/whitespace Tags)
+    while [[ $pos_idx -lt ${#positional[@]} ]]; do
+      local tag="${positional[$pos_idx]}"
+      [[ -n "${tag//[[:space:]]/}" ]] && tags_array+=("$tag")
+      ((pos_idx++)) || true
+    done
   fi
 
-  # Merge tags from -g/--tags
+  # Merge tags from -g/--tags (trim + ignore empty)
   if [[ -n "$tags_raw" ]]; then
-      IFS=',' read -r -a extra_tags <<< "$tags_raw"
-      for tag in "${extra_tags[@]}"; do
-          [[ -n "${tag// /}" ]] && tags_array+=("$tag")
-      done
+    IFS=',' read -r -a extra_tags <<< "$tags_raw"
+    for tag in "${extra_tags[@]}"; do
+      tag="$(echo "$tag" | xargs)"
+      [[ -n "${tag//[[:space:]]/}" ]] && tags_array+=("$tag")
+    done
   fi
 
-  # Deduplicate tags
+  # Deduplicate tags (trim + preserve first occurrence)
   if [[ ${#tags_array[@]} -gt 0 ]]; then
-      declare -A seen
-      declare -a unique_tags=()
-      for tag in "${tags_array[@]}"; do
-          # Trim whitespace
-          tag_trimmed="$(echo "$tag" | xargs)"
-          if [[ -n "$tag_trimmed" && -z "${seen[$tag_trimmed]:-}" ]]; then
-              unique_tags+=("$tag_trimmed")
-              seen["$tag_trimmed"]=1
-          fi
-      done
-      tags_array=("${unique_tags[@]}")
+    declare -A seen
+    declare -a unique_tags=()
+    for tag in "${tags_array[@]}"; do
+      local tag_trimmed
+      tag_trimmed="$(echo "$tag" | xargs)"
+      if [[ -n "$tag_trimmed" && -z "${seen[$tag_trimmed]:-}" ]]; then
+        unique_tags+=("$tag_trimmed")
+        seen["$tag_trimmed"]=1
+      fi
+    done
+    tags_array=("${unique_tags[@]}")
   fi
 }
 
@@ -270,9 +269,8 @@ validate_args() {
   fi
 
   # Summary-Länge (max 2000)
-  local summary_len
   summary="${summary:-""}"
-  summary_len=${#summary}
+  local summary_len=${#summary}
   if ((summary_len > 2000)); then
     echo "Fehler: summary darf höchstens 2000 Zeichen umfassen (aktuell $summary_len)." >&2
     exit 1
@@ -286,12 +284,11 @@ build_json() {
   # Convert tags array to JSON array
   local tags_json="[]"
   if [[ ${#tags_array[@]} -gt 0 ]]; then
-      tags_json="$(printf '%s\n' "${tags_array[@]}" | jq -R . | jq -s .)"
+    tags_json="$(printf '%s\n' "${tags_array[@]}" | jq -R . | jq -s .)"
   fi
 
   # Build JSON object according to metarepo schema (no sha/schema_ref fields)
-  local json_obj
-  json_obj=$(jq -cn \
+  jq -cn \
     --arg ts "$ts" \
     --arg type "$type" \
     --arg source "$source" \
@@ -306,9 +303,7 @@ build_json() {
       "title": $title,
       "summary": ($summary // ""),
       "tags": ($tags // [])
-    } + (if $url != "" then {"url": $url} else {} end)')
-
-  echo "$json_obj"
+    } + (if $url != "" then {"url": $url} else {} end)'
 }
 
 validate_json_schema() {
@@ -386,7 +381,7 @@ main() {
   validate_args
 
   local json_obj
-  json_obj=$(build_json)
+  json_obj="$(build_json)"
 
   validate_json_schema "$json_obj"
   append_to_feed "$json_obj"
