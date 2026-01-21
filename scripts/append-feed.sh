@@ -41,11 +41,13 @@ tmp_id() {
 }
 
 trim() {
+  # Usage: trim "   string   "
+  # Removes leading and trailing whitespace (space, tab, newline).
   local s="$1"
-  # leading whitespace
-  s="${s#"${s%%[!$' \t\r\n']*}"}"
-  # trailing whitespace
-  s="${s%"${s##*[!$' \t\r\n']}"}"
+  # Remove leading whitespace
+  s="${s#"${s%%[![:space:]]*}"}"
+  # Remove trailing whitespace
+  s="${s%"${s##*[![:space:]]}"}"
   printf '%s' "$s"
 }
 
