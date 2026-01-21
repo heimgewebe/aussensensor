@@ -1,0 +1,8 @@
+{
+  "artifacts": [
+    {
+      "path": "export/feed.jsonl",
+      "contract": "contracts/aussen.event.schema.json"
+    }
+  ]
+}

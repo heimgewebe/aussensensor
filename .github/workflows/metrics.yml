@@ -10,7 +10,7 @@ permissions:
     - cron: "0 * * * *"
 
 env:
-  METRICS_SCHEMA_URL: https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/wgx/metrics.json
+  METRICS_SCHEMA_URL: https://raw.githubusercontent.com/heimgewebe/metarepo/main/contracts/wgx/metrics.json
   HAUSKI_POST_URL: ${{ secrets.HAUSKI_METRICS_URL }}
 
 jobs:

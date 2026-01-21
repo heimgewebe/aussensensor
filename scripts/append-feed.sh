@@ -39,6 +39,18 @@ tmp_id() {
     echo "$RANDOM-$RANDOM-$$-$(date +%s)"
   fi
 }
+
+trim() {
+  # Usage: trim "   string   "
+  # Removes leading and trailing whitespace (space, tab, newline).
+  local s="$1"
+  # Remove leading whitespace
+  s="${s#"${s%%[![:space:]]*}"}"
+  # Remove trailing whitespace
+  s="${s%"${s##*[![:space:]]}"}"
+  printf '%s' "$s"
+}
+
 safe_mktemp() { mktemp "${TMPDIR:-/tmp}/aussen_append.$(tmp_id).XXXXXX"; }
 
 cleanup() {
@@ -203,7 +215,9 @@ parse_args() {
       # Verbleibende Argumente sind Tags (ohne leere/whitespace Tags)
       while [[ $pos_idx -lt ${#positional[@]} ]]; do
           local tag="${positional[$pos_idx]}"
-          [[ -n "${tag// /}" ]] && tags_array+=("$tag")
+          # Trim whitespace directly
+          tag="$(trim "$tag")"
+          [[ -n "$tag" ]] && tags_array+=("$tag")
           ((pos_idx++)) || true
       done
   fi
@@ -212,7 +226,8 @@ parse_args() {
   if [[ -n "$tags_raw" ]]; then
       IFS=',' read -r -a extra_tags <<< "$tags_raw"
       for tag in "${extra_tags[@]}"; do
-          [[ -n "${tag// /}" ]] && tags_array+=("$tag")
+          tag="$(trim "$tag")"
+          [[ -n "$tag" ]] && tags_array+=("$tag")
       done
   fi
 
@@ -222,7 +237,7 @@ parse_args() {
       declare -a unique_tags=()
       for tag in "${tags_array[@]}"; do
           # Trim whitespace
-          tag_trimmed="$(echo "$tag" | xargs)"
+          tag_trimmed="$(trim "$tag")"
           if [[ -n "$tag_trimmed" && -z "${seen[$tag_trimmed]:-}" ]]; then
               unique_tags+=("$tag_trimmed")
               seen["$tag_trimmed"]=1
