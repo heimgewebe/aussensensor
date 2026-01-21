@@ -11,3 +11,7 @@ export/*
 !export/feed.jsonl
 metrics.json
 tools/aussensensor-push/target
+
+# Bats test libraries (cloned at test time)
+tests/bats-support/
+tests/bats-assert/
