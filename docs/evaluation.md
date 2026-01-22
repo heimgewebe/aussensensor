@@ -4,9 +4,25 @@
 
 Das Repository `aussensensor` dient als Kurations‑Layer für externe Informationsquellen (Newsfeeds, Sensor‑Daten, Projektmeldungen). Der aktuelle MVP wird durch Bash‑Skripte realisiert, die Ereignisse im NDJSON‑Format erzeugen, validieren und an die Chronik/Heimlern‑Schnittstellen pushen. Das zentrale Ereignisformat ist in einem JSON‑Schema definiert (`contracts/aussen.event.schema.json`), und die Aufgaben werden durch einzelne Shell‑Skripte abgebildet: Appendieren, Validieren, Kompaktifizieren und Pushen. Außerdem existiert ein optionales Rust‑CLI (`aussensensor‑push`) für den effizienten NDJSON‑Upload sowie eine wgx‑Konfiguration zur Vereinfachung von Guard‑ und Build‑Tasks. GitHub‑Actions‑Workflows übernehmen Shell‑Linting, Testausführung (`bats-core`), JSONL‑Validierung und das Deployment an die Chronik.
 
+## Contract-Abgrenzung (Quelle der Wahrheit)
+
+Dieses Dokument beschreibt den aktuellen Zustand und mögliche Verbesserungen des Repositories. Maßgeblich für Struktur und Gültigkeit der Ereignisse ist ausschließlich der Contract [`contracts/aussen.event.schema.json`](../contracts/aussen.event.schema.json).
+
+Dabei gilt strikt:
+
+-   **Contract (Schema)** definiert:
+    -   Pflichtfelder: `type`, `source`
+    -   Bedingte Pflicht: bei `type == "link"` ist `url` erforderlich
+    -   Erlaubte Felder und Typen
+-   **Repository-Policy** (Skripte, CI) kann zusätzliche Leitplanken setzen, ohne den Contract zu verändern
+-   **Zielarchitektur** (ADR-0002) beschreibt geplante Erweiterungen, ist aber noch nicht wirksam
+
+Alle Aussagen in diesem Dokument sind entsprechend einzuordnen.
+
 ### Stärken
 
-*   **Klarer Contract und Datenqualität** – Das Repository definiert ein striktes Ereignisschema. Pflichtfelder wie `ts`, `type`, `source` und `title` werden erzwungen; zusätzliche Felder sind nicht erlaubt, was Downstream‑Services vereinfacht. Tags werden dedupliziert und als Array geschrieben; `append-feed.sh` setzt fehlende Werte (z. B. `ts`) automatisch.
+*   **Klarer Contract und Datenqualität** – Das Repository nutzt ein explizites JSON-Schema als Quelle der Wahrheit. Contract-seitig sind lediglich `type` und `source` verpflichtend; bei `type == "link"` ist zusätzlich `url` erforderlich. Weitere Felder wie `ts`, `title`, `summary` und `tags` sind optional, werden jedoch durch die Repository-Skripte als Best Practice gesetzt oder empfohlen.
+*   **Konsistente Event-Typen (Policy, nicht Contract)** – Das Schema erlaubt `type` als freien String. Das Repository verwendet jedoch eine informelle Typ-Konvention (z. B. `news`, `link`, `post`, `alert`, `paper`, `release`), um Konsistenz für Downstream-Systeme zu gewährleisten. Diese Konvention ist eine Repository-Policy und kein Contract-Zwang.
 *   **Gute Basistests und CI** – Shell‑Skripte werden mit `shellcheck` geprüft, und es existieren einige Bats‑Tests für `append-feed.sh`. GitHub‑Actions validieren jede Zeile des Feeds mit AJV und führen Tests automatisch aus.
 *   **Zukunftsvision** – In der Roadmap ist eine Migration zu einem Daemon mit persistenter Queue und Retry‑Mechanismus vorgesehen. Die ADR‑Dokumente beschreiben diese Entscheidung sowie das Event‑Format und geben Kontext zu den Beweggründen.
 *   **Rust‑Client für Uploads** – Das kleine Rust‑Tool `aussensensor‑push` sorgt für effizienten NDJSON‑Upload und kann alternativ zu `curl` genutzt werden.
@@ -15,13 +31,15 @@ Diese solide Basis bildet eine gute Grundlage, lässt aber noch Raum für Verbes
 
 ## Schwachstellen & Verbesserungspotential
 
+Die folgenden Punkte basieren auf einer strukturellen Analyse der vorhandenen Tests und stellen Annahmen über potenzielle Randfälle dar; sie sind nicht alle empirisch vermessen.
+
 ### Begrenzte Testabdeckung und Fehlertests
 
 Die aktuellen Bats‑Tests decken vor allem die CLI‑Argumente von `append-feed.sh` ab. Es fehlen Tests für Randfälle wie gleichzeitiges Anhängen (`flock`/Lock‑Verhalten), die integrative Nutzung der Push‑Skripte, das Verhalten bei ungültigen oder leer gelassenen Feldern und Fehlerszenarien beim HTTP‑Upload. Auch die Validierungs‑Skripte und das Rust‑Binary werden kaum getestet.
 
 ### Komplexität in Bash‑Skripten
 
-Die Bash‑Skripte sind recht umfangreich: `append-feed.sh` implementiert Argument‑Parsing, Tag‑Handling, JSON‑Erzeugung via `jq`, Schema‑Validierung, Locking und Datei‑I/O in einem. Dies erhöht die Fehleranfälligkeit und erschwert das Testen. Zudem wird JSON‑Schema‑Validierung über `jq` und AJV (via Node) „on the fly“ umgesetzt; bei großen Feeds kann die Performance leiden. Ein Teil der Logik (z. B. Validierung und JSON‑Erzeugung) ließe sich besser in eine höhere Programmiersprache auslagern.
+Die Bash‑Skripte sind recht umfangreich: `append-feed.sh` implementiert Argument‑Parsing, Tag‑Handling, JSON‑Erzeugung via `jq`, Schema‑Validierung, Locking und Datei‑I/O in einem. Dies erhöht die Fehleranfälligkeit und erschwert das Testen. Zudem wird JSON‑Schema‑Validierung über `jq` und AJV (via Node) „on the fly“ umgesetzt; bei großen Feeds kann die Performance leiden (Interpolation, Messung fehlt). Ein Teil der Logik (z. B. Validierung und JSON‑Erzeugung) ließe sich besser in eine höhere Programmiersprache auslagern.
 
 ### Künftige Skalierung / Daemonisierung
 
@@ -53,6 +71,8 @@ Die Dokumentation ist ausführlich, aber ausschließlich deutschsprachig. Für e
 
 ### 4 – Architektur & Daemonisierung
 
+Die geplante Daemon-Architektur gemäß ADR-0002 muss den bestehenden Contract unverändert konsumieren und darf keine impliziten Schema-Erweiterungen einführen. Erweiterungen erfolgen ausschließlich über neue Schema-Versionen.
+
 *   **Prototyp des Daemons**: Im Sinne der ADR‑0002 sollte ein Prototyp in einer höherstufigen Sprache entwickelt werden (Rust oder Python). Er könnte folgende Kernfunktionen bieten: Eingehende Events über verschiedene Adapter (RSS‑Feeds, REST‑APIs, manuelle Einträge), Validierung gegen das Schema, persistente Queue (z. B. SQLite oder simples Dateiformat) und periodische Pushes. Retry‑Mechanismen, Backoff‑Strategien und Health‑Endpunkte können danach ergänzt werden.
 *   **Streaming‑Push statt Bulk**: Anstatt den gesamten Feed zu übertragen, könnte der Daemon Events einzeln oder in Batches streamen. Dies reduziert Speicherverbrauch und vereinfacht das Fehlerhandling. Auch `aussensensor‑push` könnte in Zukunft Streaming unterstützen.
 *   **Observability**: Definieren Sie Metriken wie „Anzahl Events in Queue“, „Alter des ältesten Events“, „Push‑Erfolgsrate“. Exponieren Sie sie per Prometheus‑Endpoint und verarbeiten Sie Logs strukturiert (JSON‑Logformat). Die Roadmap sieht Telemetrie ausdrücklich vor.
@@ -60,7 +80,7 @@ Die Dokumentation ist ausführlich, aber ausschließlich deutschsprachig. Für e
 ### 5 – Verbesserung des Contracts & Datenqualität
 
 *   **Eindeutige IDs**: Im Schema existiert bereits ein optionales Feld `id`. Für Datenkonsumenten ist eine stabile ID hilfreich, um Duplikate zu erkennen. Erwägen Sie, dieses Feld zu generieren (z. B. via SHA‑256 der relevanten Felder) und optional zum Pflichtfeld zu machen. Das könnte in `append-feed.sh` bzw. in der neuen Bibliothek erfolgen.
-*   **Felder `features` und `meta`**: Diese Felder erlauben beliebige Objekte. Definieren Sie ein internes Format oder Versionierung, um spätere Auswertungen zu erleichtern. Außerdem sollten die Skripte optionale Felder wie `url` und `summary` nur dann schreiben, wenn sie vorhanden sind, um leere Strings zu vermeiden; das reduziert Datenvolumen.
+*   **Felder `features` und `meta`**: Diese Felder sind im Schema mit `additionalProperties: true` definiert. Definieren Sie ein internes Format oder Versionierung, um spätere Auswertungen zu erleichtern. Außerdem sollten die Skripte optionale Felder wie `url` und `summary` nur dann schreiben, wenn sie vorhanden sind, um leere Strings zu vermeiden; das reduziert Datenvolumen.
 *   **Schema‑Versionierung**: Der README verweist auf das Contracts‑Repo als Quelle der Wahrheit. Es wäre sinnvoll, die verwendete Schema‑Version in `export/feed.jsonl` oder in Git‑Tags zu vermerken, damit bei Schema‑Updates Migrationen nachvollziehbar bleiben.
 
 ### 6 – Developer Experience & Dokumentation
@@ -69,6 +89,10 @@ Die Dokumentation ist ausführlich, aber ausschließlich deutschsprachig. Für e
 *   **Beispiele & Fixtures**: Fügen Sie im Ordner `tests/fixtures/aussen/` mehr realistische Beispiel‑Events hinzu und beschreiben Sie diese im Runbook. Entwickler können dann schneller validieren und verstehen, wie verschiedene Quellen abgebildet werden.
 *   **Containerisierte Umgebung**: Ein Dockerfile oder eine `devcontainer.json` hilft, die erforderlichen Tools (`bash`, `jq`, `node`, Rust) einheitlich zur Verfügung zu stellen. Dadurch entfällt die manuelle Installation und das Onboarding wird beschleunigt.
 *   **Kommandoübersicht**: Neben dem `wgx`‑Profil könnte ein Makefile oder `justfile` eine einheitliche Oberfläche bieten (z. B. `make test`, `make validate`, `make push`). Das verringert die Einstiegshürde und macht Abläufe reproduzierbar.
+
+## Drift-Risiken
+
+Ein zentrales Risiko besteht darin, dass Repository-Policy, Dokumentation und Contract auseinanderlaufen. Änderungen an Typ-Konventionen, Pflichtfeldern oder Event-Semantik sollten daher immer zuerst im Schema reflektiert und anschließend in Skripten, CI und Dokumentation nachgezogen werden.
 
 ## Fazit
 

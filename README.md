@@ -6,7 +6,7 @@
 aussensensor kuratiert externe Informationsquellen (Newsfeeds, Wetter, Lagebilder) und stellt sie in einem konsistenten Ereignisformat für die Chronik zur Verfügung. Die aktuelle Implementierung besteht aus einfachen Bash-Hilfsskripten, die den Feed in `export/feed.jsonl` pflegen und manuell an die Chronik übertragen. Langfristig ist eine Migration zu einem dauerhaften Daemon geplant (siehe [docs/adr](docs/adr/README.md)).
 
 ## Systemkontext und Zielsetzung
-- **Zielgruppe:** Operator:innen und Analyst:innen, die ein konsolidiertes Lagebild benötigen.
+- **Zielgruppe:** Operatoren und Analysten, die ein konsolidiertes Lagebild benötigen.
 - **Einordnung:** aussensensor dient als vorgelagerter Kurationspunkt für externe Quellen und beliefert die Chronik über die `/v1/ingest`-Schnittstelle.
 - **Datenfluss:**
   **Zielbild (Standard)**: aussensensor → **nur** chronik `/v1/ingest`; Zustellung erfolgt via Plexer/Chronik gemäß `contracts/consumers.yaml`.
