@@ -161,6 +161,8 @@ Beispiel (lokal):
 3. **Telemetrie**: strukturierte Logs und Metriken (z. B. Prometheus) für Anzahl/Alter der Ereignisse.
 4. **Self-Service-Dokumentation**: Beispiele für neue Quellen, Onboarding-Checkliste.
 
+Eine detaillierte Evaluation und Optimierungsplan findet sich in [docs/evaluation.md](docs/evaluation.md).
+
 Weitere Details und Entscheidungen sind in den [Architecture Decision Records](docs/adr/README.md) dokumentiert.
 
 ## MVP vs. Zielpfad
