@@ -1,5 +1,6 @@
 use anyhow::{bail, Context, Result};
 use clap::Parser;
+use std::fs;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -19,11 +20,20 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let f = File::open(&args.file).with_context(|| format!("open {}", &args.file))?;
-    let mut lines = Vec::new();
+    let file_path = &args.file;
+
+    // Heuristische Vektor-Kapazität, um Re-Allokationen zu vermeiden, ohne die Datei zweimal zu lesen.
+    let capacity = fs::metadata(file_path)
+        .map(|m| (m.len() / 80) as usize)
+        .unwrap_or(0);
+    let mut lines = Vec::with_capacity(capacity);
+
+    let f = File::open(file_path).with_context(|| format!("open {}", file_path))?;
     for line in BufReader::new(f).lines() {
         let l = line?;
-        if l.trim().is_empty() { continue; }
+        if l.trim().is_empty() {
+            continue;
+        }
         // einfache Hygiene: jede Zeile muss ein JSON-Objekt sein (heuristisch)
         if !(l.trim_start().starts_with('{') && l.trim_end().ends_with('}')) {
             bail!("keine JSON-Objekt-Zeile: {}", l);
@@ -39,7 +49,11 @@ fn main() -> Result<()> {
     let token = std::env::var("CHRONIK_TOKEN").ok();
 
     if args.dry_run {
-        eprintln!("[DRY-RUN] Würde {} Events an {} senden.", lines.len(), &args.url);
+        eprintln!(
+            "[DRY-RUN] Würde {} Events an {} senden.",
+            lines.len(),
+            &args.url
+        );
         if let Some(t) = &token {
             eprintln!("[DRY-RUN] Token: gesetzt ({} Zeichen).", t.len());
         } else {
