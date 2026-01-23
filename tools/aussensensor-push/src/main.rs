@@ -19,11 +19,21 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let f = File::open(&args.file).with_context(|| format!("open {}", &args.file))?;
-    let mut lines = Vec::new();
+    let file_path = &args.file;
+
+    // Vektor-Kapazität vorab bestimmen, um Re-Allokationen zu vermeiden
+    let line_count = {
+        let file = File::open(file_path).with_context(|| format!("open {}", file_path))?;
+        BufReader::new(file).lines().count()
+    };
+    let mut lines = Vec::with_capacity(line_count);
+
+    let f = File::open(file_path).with_context(|| format!("open {}", file_path))?;
     for line in BufReader::new(f).lines() {
         let l = line?;
-        if l.trim().is_empty() { continue; }
+        if l.trim().is_empty() {
+            continue;
+        }
         // einfache Hygiene: jede Zeile muss ein JSON-Objekt sein (heuristisch)
         if !(l.trim_start().starts_with('{') && l.trim_end().ends_with('}')) {
             bail!("keine JSON-Objekt-Zeile: {}", l);
