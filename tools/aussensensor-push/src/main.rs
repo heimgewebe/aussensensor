@@ -1,7 +1,7 @@
 use anyhow::{bail, Context, Result};
 use clap::Parser;
-use std::fs::{self, File};
-use std::io::{BufRead, BufReader, ErrorKind, Read};
+use std::fs::File;
+use std::io::{BufRead, BufReader, ErrorKind, Read, Seek, SeekFrom};
 
 /// Send NDJSON to chronik /v1/ingest
 #[derive(Parser, Debug)]
@@ -17,11 +17,12 @@ struct Args {
     dry_run: bool,
 }
 
-fn scan_and_validate(path: &str) -> Result<(usize, fs::Metadata)> {
-    let f = File::open(path).with_context(|| format!("open {}", path))?;
-    let metadata = f.metadata().context("failed to read file metadata")?;
+// Pass 1: Scan, Validate (Heuristic), and Count
+fn scan_and_validate(file: &mut File) -> Result<usize> {
     let mut count = 0;
-    for line in BufReader::new(f).lines() {
+    // Use a BufReader wrapper around the mutable reference to the file.
+    // This allows us to read the file without consuming the handle.
+    for line in BufReader::new(file).lines() {
         let l = line?;
         if l.trim().is_empty() {
             continue;
@@ -32,7 +33,7 @@ fn scan_and_validate(path: &str) -> Result<(usize, fs::Metadata)> {
         }
         count += 1;
     }
-    Ok((count, metadata))
+    Ok(count)
 }
 
 struct JsonlReader<R> {
@@ -55,6 +56,7 @@ impl<R: Read> JsonlReader<R> {
 
 impl<R: Read> Read for JsonlReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        // Optimization: No-op for empty buffer probes
         if buf.is_empty() {
             return Ok(0);
         }
@@ -75,8 +77,9 @@ impl<R: Read> Read for JsonlReader<R> {
                 continue;
             }
 
-            // Consistency check: must look like JSON object
-            // This mirrors scan_and_validate logic to ensure we don't send unvalidated data
+            // Consistency Check: Ensure line matches the Pass 1 heuristic.
+            // Since we reused the file handle, this should theoretically never fail
+            // unless the filesystem was tampered with underneath, but it guarantees safety.
             if !(self.line_buf.trim_start().starts_with('{')
                 && self.line_buf.trim_end().ends_with('}'))
             {
@@ -110,8 +113,11 @@ impl<R: Read> Read for JsonlReader<R> {
 fn main() -> Result<()> {
     let args = Args::parse();
 
+    // Open file once
+    let mut f = File::open(&args.file).with_context(|| format!("open {}", &args.file))?;
+
     // Pass 1: Validate and count
-    let (count, meta_before) = scan_and_validate(&args.file)?;
+    let count = scan_and_validate(&mut f)?;
 
     if count == 0 {
         eprintln!("Warnung: keine Events in {}", &args.file);
@@ -124,7 +130,8 @@ fn main() -> Result<()> {
     if args.dry_run {
         eprintln!(
             "[DRY-RUN] Würde {} Events an {} senden.",
-            count, &args.url
+            count,
+            &args.url
         );
         if let Some(t) = &token {
             eprintln!("[DRY-RUN] Token: gesetzt ({} Zeichen).", t.len());
@@ -134,17 +141,11 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    // TOCTOU Check
-    let f = File::open(&args.file).with_context(|| format!("open {}", &args.file))?;
-    let meta_after = f.metadata().context("failed to read file metadata (pass 2)")?;
+    // Reset file cursor to beginning for Pass 2
+    f.seek(SeekFrom::Start(0))
+        .context("failed to rewind file")?;
 
-    if meta_before.len() != meta_after.len()
-        || meta_before.modified().ok() != meta_after.modified().ok()
-    {
-        bail!("file changed during run: {}", args.file);
-    }
-
-    // Pass 2: Stream
+    // Pass 2: Stream using the same file handle
     let reader = JsonlReader::new(f);
 
     let client = reqwest::blocking::Client::new();
@@ -155,10 +156,7 @@ fn main() -> Result<()> {
         req = req.header("x-auth", t);
     }
 
-    // reqwest Body handles Reader and uses Transfer-Encoding: chunked if needed
-    // or we can set Content-Length if we calculated it, but we only calculated line count.
-    // Calculating exact byte size in Pass 1 is possible but maybe overkill/complex if line endings change.
-    // Chunked is fine for NDJSON.
+    // Uses Transfer-Encoding: chunked
     let resp = req
         .body(reqwest::blocking::Body::new(reader))
         .send()
