@@ -17,6 +17,11 @@ struct Args {
     dry_run: bool,
 }
 
+/// Heuristische Prüfung: jede Zeile muss wie ein JSON-Objekt aussehen.
+fn is_valid_json_line(line: &str) -> bool {
+    line.trim_start().starts_with('{') && line.trim_end().ends_with('}')
+}
+
 // Pass 1: Scan, Validate (Heuristic), and Count
 fn scan_and_validate(file: &mut File) -> Result<usize> {
     let mut count = 0;
@@ -27,9 +32,8 @@ fn scan_and_validate(file: &mut File) -> Result<usize> {
         if l.trim().is_empty() {
             continue;
         }
-        // einfache Hygiene: jede Zeile muss ein JSON-Objekt sein (heuristisch)
-        if !(l.trim_start().starts_with('{') && l.trim_end().ends_with('}')) {
-            bail!("Zeile {}: keine JSON-Objekt-Zeile: {}", i + 1, l);
+        if !is_valid_json_line(&l) {
+            bail!("Zeile {}: keine JSON-Objekt-Zeile: {}", i + 1, l.trim_end());
         }
         count += 1;
     }
@@ -81,16 +85,13 @@ impl<R: Read> Read for JsonlReader<R> {
             }
 
             // Consistency Check: Ensure line matches the Pass 1 heuristic.
-            // Since we reused the file handle, this should theoretically never fail
-            // unless the filesystem was tampered with underneath, but it guarantees safety.
-            if !(self.line_buf.trim_start().starts_with('{')
-                && self.line_buf.trim_end().ends_with('}'))
-            {
+            if !is_valid_json_line(&self.line_buf) {
                 return Err(std::io::Error::new(
                     ErrorKind::InvalidData,
                     format!(
                         "Zeile {}: keine JSON-Objekt-Zeile: {}",
-                        self.line_number, self.line_buf
+                        self.line_number,
+                        self.line_buf.trim_end()
                     ),
                 ));
             }
@@ -187,4 +188,58 @@ fn main() -> Result<()> {
 
     eprintln!("OK: {} akzeptiert", args.url);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+
+    #[test]
+    fn test_valid_json_line() {
+        assert!(is_valid_json_line(r#"{"id":1}"#));
+        assert!(is_valid_json_line(r#"  {"id":1}  "#));
+        assert!(!is_valid_json_line(r#"not json"#));
+        assert!(!is_valid_json_line(r#"{"id":1"#));
+    }
+
+    #[test]
+    fn test_jsonl_reader_streaming() {
+        let input = "{\"a\":1}\n\n{\"b\":2}\n";
+        let cursor = Cursor::new(input);
+        let mut reader = JsonlReader::new(cursor);
+        let mut output = String::new();
+        reader.read_to_string(&mut output).unwrap();
+        // Expect clean NDJSON with no empty lines
+        assert_eq!(output, "{\"a\":1}\n{\"b\":2}\n");
+    }
+
+    #[test]
+    fn test_jsonl_reader_invalid_data() {
+        let input = "{\"a\":1}\ngarbage\n";
+        let cursor = Cursor::new(input);
+        let mut reader = JsonlReader::new(cursor);
+        let mut output = String::new();
+        let err = reader.read_to_string(&mut output).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData);
+        assert!(err.to_string().contains("Zeile 2"));
+        assert!(err.to_string().contains("garbage"));
+        // Ensure newlines are trimmed from error message
+        assert!(!err.to_string().contains("garbage\n"));
+    }
+
+    #[test]
+    fn test_jsonl_reader_empty_buf_probe() {
+        let input = "{\"a\":1}\n";
+        let cursor = Cursor::new(input);
+        let mut reader = JsonlReader::new(cursor);
+        let mut buf = [0u8; 0];
+        // Must return Ok(0)
+        let n = reader.read(&mut buf).unwrap();
+        assert_eq!(n, 0);
+        // Ensure nothing was consumed
+        let mut output = String::new();
+        reader.read_to_string(&mut output).unwrap();
+        assert_eq!(output, "{\"a\":1}\n");
+    }
 }
