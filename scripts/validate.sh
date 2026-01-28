@@ -55,10 +55,6 @@ USAGE
 
 check_deps
 need sed
-# jq is strictly speaking not needed for the streaming validation logic itself anymore,
-# but might be used by other scripts sourcing this or just good to check environment.
-# Since we removed the jq usage below, we could remove the check, but keeping it is harmless.
-need jq
 
 # --- Args --------------------------------------------------------------------
 
