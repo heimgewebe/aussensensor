@@ -1,7 +1,7 @@
 use anyhow::{bail, Context, Result};
 use clap::Parser;
-use std::fs::File;
-use std::io::{BufRead, BufReader, Read};
+use std::fs::{self, File};
+use std::io::{BufRead, BufReader, ErrorKind, Read};
 
 /// Send NDJSON to chronik /v1/ingest
 #[derive(Parser, Debug)]
@@ -17,8 +17,9 @@ struct Args {
     dry_run: bool,
 }
 
-fn scan_and_validate(path: &str) -> Result<usize> {
+fn scan_and_validate(path: &str) -> Result<(usize, fs::Metadata)> {
     let f = File::open(path).with_context(|| format!("open {}", path))?;
+    let metadata = f.metadata().context("failed to read file metadata")?;
     let mut count = 0;
     for line in BufReader::new(f).lines() {
         let l = line?;
@@ -31,7 +32,7 @@ fn scan_and_validate(path: &str) -> Result<usize> {
         }
         count += 1;
     }
-    Ok(count)
+    Ok((count, metadata))
 }
 
 struct JsonlReader<R> {
@@ -54,6 +55,10 @@ impl<R: Read> JsonlReader<R> {
 
 impl<R: Read> Read for JsonlReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
+
         while self.cursor >= self.buffer.len() {
             self.buffer.clear();
             self.cursor = 0;
@@ -68,6 +73,17 @@ impl<R: Read> Read for JsonlReader<R> {
             // Skip empty lines (whitespace only)
             if self.line_buf.trim().is_empty() {
                 continue;
+            }
+
+            // Consistency check: must look like JSON object
+            // This mirrors scan_and_validate logic to ensure we don't send unvalidated data
+            if !(self.line_buf.trim_start().starts_with('{')
+                && self.line_buf.trim_end().ends_with('}'))
+            {
+                return Err(std::io::Error::new(
+                    ErrorKind::InvalidData,
+                    format!("keine JSON-Objekt-Zeile: {}", self.line_buf),
+                ));
             }
 
             // Normalize line ending to \n
@@ -95,7 +111,7 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     // Pass 1: Validate and count
-    let count = scan_and_validate(&args.file)?;
+    let (count, meta_before) = scan_and_validate(&args.file)?;
 
     if count == 0 {
         eprintln!("Warnung: keine Events in {}", &args.file);
@@ -108,8 +124,7 @@ fn main() -> Result<()> {
     if args.dry_run {
         eprintln!(
             "[DRY-RUN] Würde {} Events an {} senden.",
-            count,
-            &args.url
+            count, &args.url
         );
         if let Some(t) = &token {
             eprintln!("[DRY-RUN] Token: gesetzt ({} Zeichen).", t.len());
@@ -119,8 +134,17 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    // Pass 2: Stream
+    // TOCTOU Check
     let f = File::open(&args.file).with_context(|| format!("open {}", &args.file))?;
+    let meta_after = f.metadata().context("failed to read file metadata (pass 2)")?;
+
+    if meta_before.len() != meta_after.len()
+        || meta_before.modified().ok() != meta_after.modified().ok()
+    {
+        bail!("file changed during run: {}", args.file);
+    }
+
+    // Pass 2: Stream
     let reader = JsonlReader::new(f);
 
     let client = reqwest::blocking::Client::new();
