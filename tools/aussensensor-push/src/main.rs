@@ -1,8 +1,7 @@
 use anyhow::{bail, Context, Result};
 use clap::Parser;
-use std::fs;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
 
 /// Send NDJSON to chronik /v1/ingest
 #[derive(Parser, Debug)]
@@ -18,17 +17,9 @@ struct Args {
     dry_run: bool,
 }
 
-fn main() -> Result<()> {
-    let args = Args::parse();
-    let file_path = &args.file;
-
-    // Heuristische Vektor-Kapazität, um Re-Allokationen zu vermeiden, ohne die Datei zweimal zu lesen.
-    let capacity = fs::metadata(file_path)
-        .map(|m| (m.len() / 80) as usize)
-        .unwrap_or(0);
-    let mut lines = Vec::with_capacity(capacity);
-
-    let f = File::open(file_path).with_context(|| format!("open {}", file_path))?;
+fn scan_and_validate(path: &str) -> Result<usize> {
+    let f = File::open(path).with_context(|| format!("open {}", path))?;
+    let mut count = 0;
     for line in BufReader::new(f).lines() {
         let l = line?;
         if l.trim().is_empty() {
@@ -38,9 +29,75 @@ fn main() -> Result<()> {
         if !(l.trim_start().starts_with('{') && l.trim_end().ends_with('}')) {
             bail!("keine JSON-Objekt-Zeile: {}", l);
         }
-        lines.push(l);
+        count += 1;
     }
-    if lines.is_empty() {
+    Ok(count)
+}
+
+struct JsonlReader<R> {
+    reader: BufReader<R>,
+    buffer: Vec<u8>,
+    cursor: usize,
+    line_buf: String,
+}
+
+impl<R: Read> JsonlReader<R> {
+    fn new(inner: R) -> Self {
+        Self {
+            reader: BufReader::new(inner),
+            buffer: Vec::new(),
+            cursor: 0,
+            line_buf: String::new(),
+        }
+    }
+}
+
+impl<R: Read> Read for JsonlReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        while self.cursor >= self.buffer.len() {
+            self.buffer.clear();
+            self.cursor = 0;
+            self.line_buf.clear();
+
+            // read_line reads until newline, including it.
+            let n = self.reader.read_line(&mut self.line_buf)?;
+            if n == 0 {
+                return Ok(0); // EOF
+            }
+
+            // Skip empty lines (whitespace only)
+            if self.line_buf.trim().is_empty() {
+                continue;
+            }
+
+            // Normalize line ending to \n
+            // Remove existing newline chars from the end
+            if self.line_buf.ends_with('\n') {
+                self.line_buf.pop();
+                if self.line_buf.ends_with('\r') {
+                    self.line_buf.pop();
+                }
+            }
+
+            self.buffer.extend_from_slice(self.line_buf.as_bytes());
+            self.buffer.push(b'\n');
+        }
+
+        let remaining = &self.buffer[self.cursor..];
+        let to_copy = std::cmp::min(remaining.len(), buf.len());
+        buf[..to_copy].copy_from_slice(&remaining[..to_copy]);
+        self.cursor += to_copy;
+        Ok(to_copy)
+    }
+}
+
+fn main() -> Result<()> {
+    let args = Args::parse();
+
+    // Pass 1: Validate and count
+    let count = scan_and_validate(&args.file)?;
+
+    if count == 0 {
         eprintln!("Warnung: keine Events in {}", &args.file);
         return Ok(());
     }
@@ -51,7 +108,7 @@ fn main() -> Result<()> {
     if args.dry_run {
         eprintln!(
             "[DRY-RUN] Würde {} Events an {} senden.",
-            lines.len(),
+            count,
             &args.url
         );
         if let Some(t) = &token {
@@ -61,7 +118,11 @@ fn main() -> Result<()> {
         }
         return Ok(());
     }
-    let body = lines.join("\n") + "\n";
+
+    // Pass 2: Stream
+    let f = File::open(&args.file).with_context(|| format!("open {}", &args.file))?;
+    let reader = JsonlReader::new(f);
+
     let client = reqwest::blocking::Client::new();
     let mut req = client
         .post(&args.url)
@@ -69,10 +130,16 @@ fn main() -> Result<()> {
     if let Some(t) = &token {
         req = req.header("x-auth", t);
     }
+
+    // reqwest Body handles Reader and uses Transfer-Encoding: chunked if needed
+    // or we can set Content-Length if we calculated it, but we only calculated line count.
+    // Calculating exact byte size in Pass 1 is possible but maybe overkill/complex if line endings change.
+    // Chunked is fine for NDJSON.
     let resp = req
-        .body(body)
+        .body(reqwest::blocking::Body::new(reader))
         .send()
         .with_context(|| format!("POST {}", &args.url))?;
+
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp
