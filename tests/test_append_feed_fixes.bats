@@ -55,15 +55,23 @@ teardown() {
 }
 
 @test "append-feed.sh runs with simulated shell fallback (no uuidgen/openssl/python3)" {
-    # Erstelle gepatchte Version des Skripts
-    local PATCHED_SCRIPT="${BATS_TMPDIR}/append-feed-fallback.sh"
+    # Prepare directory structure in BATS_TMPDIR to mimic repo structure
+    mkdir -p "${BATS_TMPDIR}/scripts"
+    mkdir -p "${BATS_TMPDIR}/contracts"
+
+    # Erstelle gepatchte Version des Skripts in scripts/
+    local PATCHED_SCRIPT="${BATS_TMPDIR}/scripts/append-feed-fallback.sh"
     cp "$APPEND_FEED" "$PATCHED_SCRIPT"
 
-    # Kopiere validate.sh und validate_stream.js ebenfalls, da das Skript es relativ zu sich selbst sucht
-    cp "$REPO_ROOT/scripts/validate.sh" "${BATS_TMPDIR}/validate.sh"
-    cp "$REPO_ROOT/scripts/validate_stream.js" "${BATS_TMPDIR}/validate_stream.js"
-    # Symlink node_modules, damit require('ajv') funktioniert
+    # Kopiere validate.sh und validate_stream.js nach scripts/
+    cp "$REPO_ROOT/scripts/validate.sh" "${BATS_TMPDIR}/scripts/validate.sh"
+    cp "$REPO_ROOT/scripts/validate_stream.js" "${BATS_TMPDIR}/scripts/validate_stream.js"
+
+    # Symlink node_modules in Root von BATS_TMPDIR (damit REPO_ROOT/node_modules gefunden wird)
     ln -s "$REPO_ROOT/node_modules" "${BATS_TMPDIR}/node_modules"
+
+    # Kopiere Schema nach contracts/
+    cp "$REPO_ROOT/contracts/aussen.event.schema.json" "${BATS_TMPDIR}/contracts/aussen.event.schema.json"
 
     # Ersetze die 'have' Checks für die Tools mit 'false'
     sed -i.bak 's/have uuidgen/false/g' "$PATCHED_SCRIPT"
@@ -72,8 +80,8 @@ teardown() {
 
     chmod +x "$PATCHED_SCRIPT"
 
-    # Setze SCHEMA_FILE, damit validate.sh das Schema im Repo findet
-    export SCHEMA_FILE="$REPO_ROOT/contracts/aussen.event.schema.json"
+    # Setze SCHEMA_FILE explizit oder verlasse dich auf REPO_ROOT Ableitung
+    # Da wir contracts/ kopiert haben, sollte die Ableitung funktionieren (SCRIPT_DIR/../contracts/...)
 
     run "$PATCHED_SCRIPT" -t news -s manual -T "Shell Fallback Test" -o "$TEST_OUTPUT_FILE"
     assert_success
@@ -81,8 +89,6 @@ teardown() {
     # Prüfe ob Datei erstellt wurde (d.h. safe_mktemp hat funktioniert)
     [ -f "$TEST_OUTPUT_FILE" ]
     grep -q "Shell Fallback Test" "$TEST_OUTPUT_FILE"
-
-    rm -f "$PATCHED_SCRIPT" "${PATCHED_SCRIPT}.bak"
 }
 
 @test "append-feed.sh runs with uuidgen available (default)" {

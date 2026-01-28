@@ -29,7 +29,8 @@ need() {
 
 check_deps() {
   need node
-  if ! node -e "try { require('ajv'); require('ajv-formats'); } catch(e) { process.exit(1); }" 2>/dev/null; then
+  # Ensure we check for modules in the repo root so require() finds them
+  if ! (cd "$REPO_ROOT" && node -e "try { require('ajv'); require('ajv-formats'); } catch(e) { process.exit(1); }") 2>/dev/null; then
     echo "Fehler: 'ajv' und 'ajv-formats' werden benötigt. Bitte 'npm install' ausführen." >&2
     exit 1
   fi
@@ -54,6 +55,9 @@ USAGE
 
 check_deps
 need sed
+# jq is strictly speaking not needed for the streaming validation logic itself anymore,
+# but might be used by other scripts sourcing this or just good to check environment.
+# Since we removed the jq usage below, we could remove the check, but keeping it is harmless.
 need jq
 
 # --- Args --------------------------------------------------------------------
@@ -116,17 +120,20 @@ validate_file() {
   fi
 
   # Stream validation using Node.js script
-  if ! node "$SCRIPT_DIR/validate_stream.js" "$TMP_SCHEMA_FILE" < "$input_file"; then
-     # The JS script prints its own errors to stderr.
-     # Exit code 2 means "no data" (e.g. valid JSON but no records/empty lines)
-     local ret=$?
-     if [[ $ret -eq 2 ]]; then
-       return 2
-     fi
-     return 1
-  fi
+  # We do NOT cd to REPO_ROOT here, so that relative paths in $input_file work correctly.
+  # The Node script (in SCRIPT_DIR) will find its dependencies via Node's module resolution
+  # (looking in SCRIPT_DIR/node_modules, then SCRIPT_DIR/../node_modules).
 
-  return 0
+  node "$SCRIPT_DIR/validate_stream.js" "$TMP_SCHEMA_FILE" < "$input_file"
+  local ret=$?
+
+  if [[ $ret -eq 0 ]]; then
+    return 0
+  elif [[ $ret -eq 2 ]]; then
+    return 2
+  else
+    return 1
+  fi
 }
 
 status=0
