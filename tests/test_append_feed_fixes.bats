@@ -59,8 +59,11 @@ teardown() {
     local PATCHED_SCRIPT="${BATS_TMPDIR}/append-feed-fallback.sh"
     cp "$APPEND_FEED" "$PATCHED_SCRIPT"
 
-    # Kopiere validate.sh ebenfalls, da das Skript es relativ zu sich selbst sucht
+    # Kopiere validate.sh und validate_stream.js ebenfalls, da das Skript es relativ zu sich selbst sucht
     cp "$REPO_ROOT/scripts/validate.sh" "${BATS_TMPDIR}/validate.sh"
+    cp "$REPO_ROOT/scripts/validate_stream.js" "${BATS_TMPDIR}/validate_stream.js"
+    # Symlink node_modules, damit require('ajv') funktioniert
+    ln -s "$REPO_ROOT/node_modules" "${BATS_TMPDIR}/node_modules"
 
     # Ersetze die 'have' Checks für die Tools mit 'false'
     sed -i.bak 's/have uuidgen/false/g' "$PATCHED_SCRIPT"
