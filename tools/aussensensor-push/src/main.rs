@@ -22,14 +22,14 @@ fn scan_and_validate(file: &mut File) -> Result<usize> {
     let mut count = 0;
     // Use a BufReader wrapper around the mutable reference to the file.
     // This allows us to read the file without consuming the handle.
-    for line in BufReader::new(file).lines() {
+    for (i, line) in BufReader::new(file).lines().enumerate() {
         let l = line?;
         if l.trim().is_empty() {
             continue;
         }
         // einfache Hygiene: jede Zeile muss ein JSON-Objekt sein (heuristisch)
         if !(l.trim_start().starts_with('{') && l.trim_end().ends_with('}')) {
-            bail!("keine JSON-Objekt-Zeile: {}", l);
+            bail!("Zeile {}: keine JSON-Objekt-Zeile: {}", i + 1, l);
         }
         count += 1;
     }
@@ -41,6 +41,7 @@ struct JsonlReader<R> {
     buffer: Vec<u8>,
     cursor: usize,
     line_buf: String,
+    line_number: usize,
 }
 
 impl<R: Read> JsonlReader<R> {
@@ -50,6 +51,7 @@ impl<R: Read> JsonlReader<R> {
             buffer: Vec::new(),
             cursor: 0,
             line_buf: String::new(),
+            line_number: 0,
         }
     }
 }
@@ -71,6 +73,7 @@ impl<R: Read> Read for JsonlReader<R> {
             if n == 0 {
                 return Ok(0); // EOF
             }
+            self.line_number += 1;
 
             // Skip empty lines (whitespace only)
             if self.line_buf.trim().is_empty() {
@@ -85,7 +88,10 @@ impl<R: Read> Read for JsonlReader<R> {
             {
                 return Err(std::io::Error::new(
                     ErrorKind::InvalidData,
-                    format!("keine JSON-Objekt-Zeile: {}", self.line_buf),
+                    format!(
+                        "Zeile {}: keine JSON-Objekt-Zeile: {}",
+                        self.line_number, self.line_buf
+                    ),
                 ));
             }
 
@@ -130,8 +136,7 @@ fn main() -> Result<()> {
     if args.dry_run {
         eprintln!(
             "[DRY-RUN] Würde {} Events an {} senden.",
-            count,
-            &args.url
+            count, &args.url
         );
         if let Some(t) = &token {
             eprintln!("[DRY-RUN] Token: gesetzt ({} Zeichen).", t.len());
