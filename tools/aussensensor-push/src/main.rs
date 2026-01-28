@@ -18,7 +18,8 @@ struct Args {
 }
 
 /// Heuristische Prüfung: jede Zeile muss wie ein JSON-Objekt aussehen.
-fn is_valid_json_line(line: &str) -> bool {
+/// Dies ist keine vollständige JSON-Validierung, sondern dient der grundlegenden Hygiene.
+fn looks_like_json_object_line(line: &str) -> bool {
     line.trim_start().starts_with('{') && line.trim_end().ends_with('}')
 }
 
@@ -32,7 +33,7 @@ fn scan_and_validate(file: &mut File) -> Result<usize> {
         if l.trim().is_empty() {
             continue;
         }
-        if !is_valid_json_line(&l) {
+        if !looks_like_json_object_line(&l) {
             bail!("Zeile {}: keine JSON-Objekt-Zeile: {}", i + 1, l.trim_end());
         }
         count += 1;
@@ -85,7 +86,7 @@ impl<R: Read> Read for JsonlReader<R> {
             }
 
             // Consistency Check: Ensure line matches the Pass 1 heuristic.
-            if !is_valid_json_line(&self.line_buf) {
+            if !looks_like_json_object_line(&self.line_buf) {
                 return Err(std::io::Error::new(
                     ErrorKind::InvalidData,
                     format!(
@@ -196,11 +197,11 @@ mod tests {
     use std::io::Cursor;
 
     #[test]
-    fn test_valid_json_line() {
-        assert!(is_valid_json_line(r#"{"id":1}"#));
-        assert!(is_valid_json_line(r#"  {"id":1}  "#));
-        assert!(!is_valid_json_line(r#"not json"#));
-        assert!(!is_valid_json_line(r#"{"id":1"#));
+    fn test_looks_like_json_object_line() {
+        assert!(looks_like_json_object_line(r#"{"id":1}"#));
+        assert!(looks_like_json_object_line(r#"  {"id":1}  "#));
+        assert!(!looks_like_json_object_line(r#"not json"#));
+        assert!(!looks_like_json_object_line(r#"{"id":1"#));
     }
 
     #[test]
