@@ -1,8 +1,7 @@
 use anyhow::{bail, Context, Result};
 use clap::Parser;
-use std::fs;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, ErrorKind, Read, Seek, SeekFrom};
 
 /// Send NDJSON to chronik /v1/ingest
 #[derive(Parser, Debug)]
@@ -18,29 +17,117 @@ struct Args {
     dry_run: bool,
 }
 
-fn main() -> Result<()> {
-    let args = Args::parse();
-    let file_path = &args.file;
+/// Heuristische Prüfung: jede Zeile muss wie ein JSON-Objekt aussehen.
+/// Dies ist keine vollständige JSON-Validierung, sondern dient der grundlegenden Hygiene.
+fn looks_like_json_object_line(line: &str) -> bool {
+    line.trim_start().starts_with('{') && line.trim_end().ends_with('}')
+}
 
-    // Heuristische Vektor-Kapazität, um Re-Allokationen zu vermeiden, ohne die Datei zweimal zu lesen.
-    let capacity = fs::metadata(file_path)
-        .map(|m| (m.len() / 80) as usize)
-        .unwrap_or(0);
-    let mut lines = Vec::with_capacity(capacity);
-
-    let f = File::open(file_path).with_context(|| format!("open {}", file_path))?;
-    for line in BufReader::new(f).lines() {
+// Pass 1: Scan, Validate (Heuristic), and Count
+fn scan_and_validate(file: &mut File) -> Result<usize> {
+    let mut count = 0;
+    // Use a BufReader wrapper around the mutable reference to the file.
+    // This allows us to read the file without consuming the handle.
+    for (i, line) in BufReader::new(file).lines().enumerate() {
         let l = line?;
         if l.trim().is_empty() {
             continue;
         }
-        // einfache Hygiene: jede Zeile muss ein JSON-Objekt sein (heuristisch)
-        if !(l.trim_start().starts_with('{') && l.trim_end().ends_with('}')) {
-            bail!("keine JSON-Objekt-Zeile: {}", l);
+        if !looks_like_json_object_line(&l) {
+            bail!("Zeile {}: keine JSON-Objekt-Zeile: {}", i + 1, l.trim_end());
         }
-        lines.push(l);
+        count += 1;
     }
-    if lines.is_empty() {
+    Ok(count)
+}
+
+struct JsonlReader<R> {
+    reader: BufReader<R>,
+    buffer: Vec<u8>,
+    cursor: usize,
+    line_buf: String,
+    line_number: usize,
+}
+
+impl<R: Read> JsonlReader<R> {
+    fn new(inner: R) -> Self {
+        Self {
+            reader: BufReader::new(inner),
+            buffer: Vec::new(),
+            cursor: 0,
+            line_buf: String::new(),
+            line_number: 0,
+        }
+    }
+}
+
+impl<R: Read> Read for JsonlReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        // Optimization: No-op for empty buffer probes
+        if buf.is_empty() {
+            return Ok(0);
+        }
+
+        while self.cursor >= self.buffer.len() {
+            self.buffer.clear();
+            self.cursor = 0;
+            self.line_buf.clear();
+
+            // read_line reads until newline, including it.
+            let n = self.reader.read_line(&mut self.line_buf)?;
+            if n == 0 {
+                return Ok(0); // EOF
+            }
+            self.line_number += 1;
+
+            // Skip empty lines (whitespace only)
+            if self.line_buf.trim().is_empty() {
+                continue;
+            }
+
+            // Consistency Check: Ensure line matches the Pass 1 heuristic.
+            if !looks_like_json_object_line(&self.line_buf) {
+                return Err(std::io::Error::new(
+                    ErrorKind::InvalidData,
+                    format!(
+                        "Zeile {}: keine JSON-Objekt-Zeile: {}",
+                        self.line_number,
+                        self.line_buf.trim_end()
+                    ),
+                ));
+            }
+
+            // Normalize line ending to \n
+            // Remove existing newline chars from the end
+            if self.line_buf.ends_with('\n') {
+                self.line_buf.pop();
+                if self.line_buf.ends_with('\r') {
+                    self.line_buf.pop();
+                }
+            }
+
+            self.buffer.extend_from_slice(self.line_buf.as_bytes());
+            self.buffer.push(b'\n');
+        }
+
+        let remaining = &self.buffer[self.cursor..];
+        let to_copy = std::cmp::min(remaining.len(), buf.len());
+        buf[..to_copy].copy_from_slice(&remaining[..to_copy]);
+        self.cursor += to_copy;
+        Ok(to_copy)
+    }
+}
+
+fn main() -> Result<()> {
+    let args = Args::parse();
+
+    // Open file once
+    let mut f = File::open(&args.file).with_context(|| format!("open {}", &args.file))?;
+
+    // Pass 1: Validate and count
+    let count = scan_and_validate(&mut f)?;
+
+    if count == 0 {
         eprintln!("Warnung: keine Events in {}", &args.file);
         return Ok(());
     }
@@ -51,8 +138,7 @@ fn main() -> Result<()> {
     if args.dry_run {
         eprintln!(
             "[DRY-RUN] Würde {} Events an {} senden.",
-            lines.len(),
-            &args.url
+            count, &args.url
         );
         if let Some(t) = &token {
             eprintln!("[DRY-RUN] Token: gesetzt ({} Zeichen).", t.len());
@@ -61,7 +147,14 @@ fn main() -> Result<()> {
         }
         return Ok(());
     }
-    let body = lines.join("\n") + "\n";
+
+    // Reset file cursor to beginning for Pass 2
+    f.seek(SeekFrom::Start(0))
+        .context("failed to rewind file")?;
+
+    // Pass 2: Stream using the same file handle
+    let reader = JsonlReader::new(f);
+
     let client = reqwest::blocking::Client::new();
     let mut req = client
         .post(&args.url)
@@ -69,10 +162,13 @@ fn main() -> Result<()> {
     if let Some(t) = &token {
         req = req.header("x-auth", t);
     }
+
+    // Uses Transfer-Encoding: chunked
     let resp = req
-        .body(body)
+        .body(reqwest::blocking::Body::new(reader))
         .send()
         .with_context(|| format!("POST {}", &args.url))?;
+
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp
@@ -93,4 +189,58 @@ fn main() -> Result<()> {
 
     eprintln!("OK: {} akzeptiert", args.url);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+
+    #[test]
+    fn test_looks_like_json_object_line() {
+        assert!(looks_like_json_object_line(r#"{"id":1}"#));
+        assert!(looks_like_json_object_line(r#"  {"id":1}  "#));
+        assert!(!looks_like_json_object_line(r#"not json"#));
+        assert!(!looks_like_json_object_line(r#"{"id":1"#));
+    }
+
+    #[test]
+    fn test_jsonl_reader_streaming() {
+        let input = "{\"a\":1}\n\n{\"b\":2}\n";
+        let cursor = Cursor::new(input);
+        let mut reader = JsonlReader::new(cursor);
+        let mut output = String::new();
+        reader.read_to_string(&mut output).unwrap();
+        // Expect clean NDJSON with no empty lines
+        assert_eq!(output, "{\"a\":1}\n{\"b\":2}\n");
+    }
+
+    #[test]
+    fn test_jsonl_reader_invalid_data() {
+        let input = "{\"a\":1}\ngarbage\n";
+        let cursor = Cursor::new(input);
+        let mut reader = JsonlReader::new(cursor);
+        let mut output = String::new();
+        let err = reader.read_to_string(&mut output).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData);
+        assert!(err.to_string().contains("Zeile 2"));
+        assert!(err.to_string().contains("garbage"));
+        // Ensure newlines are trimmed from error message
+        assert!(!err.to_string().contains("garbage\n"));
+    }
+
+    #[test]
+    fn test_jsonl_reader_empty_buf_probe() {
+        let input = "{\"a\":1}\n";
+        let cursor = Cursor::new(input);
+        let mut reader = JsonlReader::new(cursor);
+        let mut buf = [0u8; 0];
+        // Must return Ok(0)
+        let n = reader.read(&mut buf).unwrap();
+        assert_eq!(n, 0);
+        // Ensure nothing was consumed
+        let mut output = String::new();
+        reader.read_to_string(&mut output).unwrap();
+        assert_eq!(output, "{\"a\":1}\n");
+    }
 }
