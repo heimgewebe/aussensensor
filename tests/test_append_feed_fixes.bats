@@ -4,17 +4,20 @@ setup() {
     load 'bats-support/load'
     load 'bats-assert/load'
 
+    # Create a dedicated temporary directory for this test file
+    TEST_TMPDIR="$(mktemp -d -t bats-fixes-XXXXXX)"
+
     # Pfad zum Skript
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
     APPEND_FEED="$REPO_ROOT/scripts/append-feed.sh"
 
     # Temporäre Ausgabedatei
-    TEST_OUTPUT_FILE="$(mktemp "${TMPDIR:-/tmp}/test_feed.XXXXXX.jsonl")"
+    TEST_OUTPUT_FILE="$TEST_TMPDIR/test_feed.jsonl"
 }
 
 teardown() {
-    rm -f "$TEST_OUTPUT_FILE"
+    rm -rf "$TEST_TMPDIR"
 }
 
 @test "append-feed.sh generates valid ISO-8601 UTC timestamp with Z suffix" {
@@ -41,9 +44,9 @@ teardown() {
     # Erstelle eine "leere" Umgebung ohne uuidgen, openssl, python3
     # Dazu manipulieren wir PATH für einen Subshell-Aufruf
 
-    mkdir -p "${BATS_TMPDIR}/empty_bin"
+    mkdir -p "${TEST_TMPDIR}/empty_bin"
 
-    run env PATH="${BATS_TMPDIR}/empty_bin:/bin:/usr/bin" \
+    run env PATH="${TEST_TMPDIR}/empty_bin:/bin:/usr/bin" \
         bash -c "type uuidgen >/dev/null 2>&1 && exit 1; \
                  type openssl >/dev/null 2>&1 && exit 1; \
                  type python3 >/dev/null 2>&1 && exit 1; \
@@ -55,12 +58,23 @@ teardown() {
 }
 
 @test "append-feed.sh runs with simulated shell fallback (no uuidgen/openssl/python3)" {
-    # Erstelle gepatchte Version des Skripts
-    local PATCHED_SCRIPT="${BATS_TMPDIR}/append-feed-fallback.sh"
+    # Prepare directory structure in TEST_TMPDIR to mimic repo structure
+    mkdir -p "${TEST_TMPDIR}/scripts"
+    mkdir -p "${TEST_TMPDIR}/contracts"
+
+    # Erstelle gepatchte Version des Skripts in scripts/
+    local PATCHED_SCRIPT="${TEST_TMPDIR}/scripts/append-feed-fallback.sh"
     cp "$APPEND_FEED" "$PATCHED_SCRIPT"
 
-    # Kopiere validate.sh ebenfalls, da das Skript es relativ zu sich selbst sucht
-    cp "$REPO_ROOT/scripts/validate.sh" "${BATS_TMPDIR}/validate.sh"
+    # Kopiere validate.sh und validate_stream.js nach scripts/
+    cp "$REPO_ROOT/scripts/validate.sh" "${TEST_TMPDIR}/scripts/validate.sh"
+    cp "$REPO_ROOT/scripts/validate_stream.js" "${TEST_TMPDIR}/scripts/validate_stream.js"
+
+    # Symlink node_modules in Root von TEST_TMPDIR (damit REPO_ROOT/node_modules gefunden wird)
+    ln -s "$REPO_ROOT/node_modules" "${TEST_TMPDIR}/node_modules"
+
+    # Kopiere Schema nach contracts/
+    cp "$REPO_ROOT/contracts/aussen.event.schema.json" "${TEST_TMPDIR}/contracts/aussen.event.schema.json"
 
     # Ersetze die 'have' Checks für die Tools mit 'false'
     sed -i.bak 's/have uuidgen/false/g' "$PATCHED_SCRIPT"
@@ -69,8 +83,8 @@ teardown() {
 
     chmod +x "$PATCHED_SCRIPT"
 
-    # Setze SCHEMA_FILE, damit validate.sh das Schema im Repo findet
-    export SCHEMA_FILE="$REPO_ROOT/contracts/aussen.event.schema.json"
+    # Setze SCHEMA_FILE explizit oder verlasse dich auf REPO_ROOT Ableitung
+    # Da wir contracts/ kopiert haben, sollte die Ableitung funktionieren (SCRIPT_DIR/../contracts/...)
 
     run "$PATCHED_SCRIPT" -t news -s manual -T "Shell Fallback Test" -o "$TEST_OUTPUT_FILE"
     assert_success
@@ -78,8 +92,6 @@ teardown() {
     # Prüfe ob Datei erstellt wurde (d.h. safe_mktemp hat funktioniert)
     [ -f "$TEST_OUTPUT_FILE" ]
     grep -q "Shell Fallback Test" "$TEST_OUTPUT_FILE"
-
-    rm -f "$PATCHED_SCRIPT" "${PATCHED_SCRIPT}.bak"
 }
 
 @test "append-feed.sh runs with uuidgen available (default)" {
