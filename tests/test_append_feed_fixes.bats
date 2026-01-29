@@ -14,10 +14,22 @@ setup() {
 
     # Temporäre Ausgabedatei
     TEST_OUTPUT_FILE="$TEST_TMPDIR/test_feed.jsonl"
+
+    # Sicherstellen, dass NODE_PATH sauber ist (Backup falls existent)
+    # Wir speichern den Wert immer, auch wenn er leer ist, um deterministisches Verhalten zu garantieren.
+    ORIG_NODE_PATH="${NODE_PATH:-}"
 }
 
 teardown() {
     rm -rf "$TEST_TMPDIR"
+
+    # NODE_PATH wiederherstellen oder löschen
+    if [ -n "${ORIG_NODE_PATH}" ]; then
+        export NODE_PATH="$ORIG_NODE_PATH"
+    else
+        unset NODE_PATH
+    fi
+    unset ORIG_NODE_PATH
 }
 
 @test "append-feed.sh generates valid ISO-8601 UTC timestamp with Z suffix" {
@@ -70,8 +82,8 @@ teardown() {
     cp "$REPO_ROOT/scripts/validate.sh" "${TEST_TMPDIR}/scripts/validate.sh"
     cp "$REPO_ROOT/scripts/validate_stream.js" "${TEST_TMPDIR}/scripts/validate_stream.js"
 
-    # Symlink node_modules in Root von TEST_TMPDIR (damit REPO_ROOT/node_modules gefunden wird)
-    ln -s "$REPO_ROOT/node_modules" "${TEST_TMPDIR}/node_modules"
+    # Setze NODE_PATH, damit Node Module im Repo-Root findet (ohne Symlink)
+    export NODE_PATH="$REPO_ROOT/node_modules"
 
     # Kopiere Schema nach contracts/
     cp "$REPO_ROOT/contracts/aussen.event.schema.json" "${TEST_TMPDIR}/contracts/aussen.event.schema.json"

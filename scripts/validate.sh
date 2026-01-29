@@ -30,7 +30,7 @@ check_deps() {
   need node
   # Ensure we check for modules in the repo root so require() finds them
   if ! (cd "$REPO_ROOT" && node -e "try { require('ajv'); require('ajv-formats'); } catch(e) { process.exit(1); }") 2>/dev/null; then
-    echo "Fehler: 'ajv' und 'ajv-formats' werden benötigt. Bitte 'npm install' ausführen." >&2
+    echo "Fehler: 'ajv' und 'ajv-formats' werden benötigt. Bitte '(cd $REPO_ROOT && npm ci)' ausführen." >&2
     exit 1
   fi
 }
@@ -119,7 +119,8 @@ validate_file() {
   # The Node script (in SCRIPT_DIR) will find its dependencies via Node's module resolution
   # (looking in SCRIPT_DIR/node_modules, then SCRIPT_DIR/../node_modules).
 
-  node "$SCRIPT_DIR/validate_stream.js" "$TMP_SCHEMA_FILE" < "$input_file"
+  # Pass original schema directory as second argument to support relative $refs resolution
+  node "$SCRIPT_DIR/validate_stream.js" "$TMP_SCHEMA_FILE" "$(dirname "$SCHEMA_FILE")" < "$input_file"
   local ret=$?
 
   if [[ $ret -eq 0 ]]; then
