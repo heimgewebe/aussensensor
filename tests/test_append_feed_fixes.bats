@@ -16,16 +16,15 @@ setup() {
     TEST_OUTPUT_FILE="$TEST_TMPDIR/test_feed.jsonl"
 
     # Sicherstellen, dass NODE_PATH sauber ist (Backup falls existent)
-    if [ -n "${NODE_PATH:-}" ]; then
-        ORIG_NODE_PATH="$NODE_PATH"
-    fi
+    # Wir speichern den Wert immer, auch wenn er leer ist, um deterministisches Verhalten zu garantieren.
+    ORIG_NODE_PATH="${NODE_PATH:-}"
 }
 
 teardown() {
     rm -rf "$TEST_TMPDIR"
 
     # NODE_PATH wiederherstellen oder löschen
-    if [ -n "${ORIG_NODE_PATH:-}" ]; then
+    if [ -n "${ORIG_NODE_PATH}" ]; then
         export NODE_PATH="$ORIG_NODE_PATH"
     else
         unset NODE_PATH
