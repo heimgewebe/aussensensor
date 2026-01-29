@@ -25,3 +25,18 @@ FIXTURES_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/fixtures/ref-resolution" &&
   # Nur auf "must be string" prüfen, da der Pfadpräfix (data/child/value) je nach Ajv-Version variieren kann
   assert_output --partial "must be string"
 }
+
+@test "validate.sh: Fails on missing schema file" {
+  run "$VALIDATE_SCRIPT" -s "non_existent_schema.json" "$FIXTURES_DIR/data-with-ref.jsonl"
+  assert_failure 1
+  assert_output --partial "Schema nicht gefunden"
+}
+
+@test "validate.sh: Fails on invalid JSON schema" {
+  local invalid_schema="$BATS_TMPDIR/invalid_schema.json"
+  echo "{ invalid json" > "$invalid_schema"
+
+  run "$VALIDATE_SCRIPT" -s "$invalid_schema" "$FIXTURES_DIR/data-with-ref.jsonl"
+  assert_failure 1
+  assert_output --partial "Failed to parse schema"
+}
