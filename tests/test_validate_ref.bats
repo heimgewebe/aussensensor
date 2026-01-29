@@ -22,5 +22,6 @@ FIXTURES_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/fixtures/ref-resolution" &&
 
   run "$VALIDATE_SCRIPT" -s "$schema_file" "$invalid_file"
   assert_failure 1
-  assert_output --partial "data/child/value must be string"
+  # Nur auf "must be string" prüfen, da der Pfadpräfix (data/child/value) je nach Ajv-Version variieren kann
+  assert_output --partial "must be string"
 }
