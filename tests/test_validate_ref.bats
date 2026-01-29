@@ -5,7 +5,7 @@ load 'bats-assert/load.bash'
 
 SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/scripts"
 VALIDATE_SCRIPT="$SCRIPT_DIR/validate.sh"
-FIXTURES_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/fixtures" && pwd)"
+FIXTURES_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/fixtures/ref-resolution" && pwd)"
 
 @test "validate.sh: Resolves relative \$ref in schema" {
   local schema_file="$FIXTURES_DIR/schema-root.json"
