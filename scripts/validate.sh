@@ -9,11 +9,10 @@ REQUIRE_NONEMPTY="${REQUIRE_NONEMPTY:-0}"
 SCHEMA_FILE="${SCHEMA_FILE:-$SCHEMA_PATH}"
 
 TMP_SCHEMA_FILE="$(mktemp "${TMPDIR:-/tmp}/aussen_event.schema.XXXXXX.json")"
-TMP_DATA_FILE="$(mktemp "${TMPDIR:-/tmp}/aussen_event.data.XXXXXX.json")"
 TMP_STDIN=""
 
 cleanup() {
-  rm -f "$TMP_SCHEMA_FILE" "$TMP_DATA_FILE"
+  rm -f "$TMP_SCHEMA_FILE"
   if [[ -n "${TMP_STDIN:-}" ]]; then
     rm -f "$TMP_STDIN"
   fi
