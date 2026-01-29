@@ -29,6 +29,7 @@ teardown() {
     else
         unset NODE_PATH
     fi
+    unset ORIG_NODE_PATH
 }
 
 @test "append-feed.sh generates valid ISO-8601 UTC timestamp with Z suffix" {

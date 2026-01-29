@@ -64,7 +64,7 @@ addFormats(ajv);
   try {
     validate = await ajv.compileAsync(schema);
   } catch (e) {
-    console.error(`Failed to compile schema: ${e.message}`);
+    console.error(`Failed to compile schema (${schemaPath}): ${e.message}`);
     process.exit(1);
   }
 
