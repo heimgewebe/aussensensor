@@ -43,8 +43,9 @@ Architekturentscheidungen, die zu diesem Design führten, sind in den [ADRs](doc
    - `HEIMLERN_INGEST_URL`: Endpoint der Heimlern-Ingest-API (z. B. `http://localhost:8787/ingest/aussen`).
    - Optional: `CHRONIK_TOKEN` für einen statischen Token (Header `x-auth`).
 3. Sicherstellen, dass `jq`, `curl` sowie `node`/`npm` installiert sind.
-4. `ajv-cli` installieren: `npm install -g ajv-cli@5.0.0`
-5. **Optional**: Pre-commit Hooks für lokale Validierung installieren:
+4. Dependencies installieren: `npm ci` (installiert `ajv` und `ajv-formats` für die Streaming-Validierung).
+5. `ajv-cli` (nur für manuelle Einzeltests): `npm install -g ajv-cli@5.0.0`
+6. **Optional**: Pre-commit Hooks für lokale Validierung installieren:
    ```bash
    pip install pre-commit
    pre-commit install

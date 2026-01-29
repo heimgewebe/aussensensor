@@ -70,8 +70,8 @@ teardown() {
     cp "$REPO_ROOT/scripts/validate.sh" "${TEST_TMPDIR}/scripts/validate.sh"
     cp "$REPO_ROOT/scripts/validate_stream.js" "${TEST_TMPDIR}/scripts/validate_stream.js"
 
-    # Symlink node_modules in Root von TEST_TMPDIR (damit REPO_ROOT/node_modules gefunden wird)
-    ln -s "$REPO_ROOT/node_modules" "${TEST_TMPDIR}/node_modules"
+    # Setze NODE_PATH, damit Node Module im Repo-Root findet (ohne Symlink)
+    export NODE_PATH="$REPO_ROOT/node_modules"
 
     # Kopiere Schema nach contracts/
     cp "$REPO_ROOT/contracts/aussen.event.schema.json" "${TEST_TMPDIR}/contracts/aussen.event.schema.json"
