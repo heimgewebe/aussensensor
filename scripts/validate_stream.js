@@ -27,6 +27,11 @@ try {
   process.exit(1);
 }
 
+if (!schema || typeof schema !== 'object') {
+  console.error(`Failed to load schema object from ${schemaPath}`);
+  process.exit(1);
+}
+
 // Helper to load schemas from local files
 async function loadSchema(uri) {
   // Remove hash fragment
