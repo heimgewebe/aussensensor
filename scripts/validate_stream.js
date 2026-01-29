@@ -40,6 +40,10 @@ async function loadSchema(uri) {
     return {};
   }
 
+  if (/^[a-zA-Z]+:\/\//.test(cleanUri)) {
+    throw new Error(`Unsupported $ref URI scheme: ${cleanUri}`);
+  }
+
   // Resolve path relative to provided baseDir or schema file directory
   const effectiveBaseDir = baseDirArg || path.dirname(path.resolve(schemaPath));
   const filePath = path.resolve(effectiveBaseDir, cleanUri);
