@@ -39,16 +39,13 @@ fn scan_and_validate(file: &mut File) -> Result<usize> {
         }
         line_num += 1;
 
-        if line_buf.trim().is_empty() {
+        let trimmed = line_buf.trim();
+        if trimmed.is_empty() {
             continue;
         }
 
-        if !looks_like_json_object_line(&line_buf) {
-            bail!(
-                "Zeile {}: keine JSON-Objekt-Zeile: {}",
-                line_num,
-                line_buf.trim_end()
-            );
+        if !looks_like_json_object_line(trimmed) {
+            bail!("Zeile {}: keine JSON-Objekt-Zeile: {}", line_num, trimmed);
         }
         count += 1;
     }
