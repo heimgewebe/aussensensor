@@ -26,15 +26,26 @@ fn looks_like_json_object_line(line: &str) -> bool {
 // Pass 1: Scan, Validate (Heuristic), and Count
 fn scan_and_validate(file: &mut File) -> Result<usize> {
     let mut count = 0;
-    // Use a BufReader wrapper around the mutable reference to the file.
-    // This allows us to read the file without consuming the handle.
-    for (i, line) in BufReader::new(file).lines().enumerate() {
-        let l = line?;
-        if l.trim().is_empty() {
+    let mut reader = BufReader::new(file);
+    let mut line_buf = String::new();
+    let mut line_num = 0;
+
+    // Optimization: reuse String buffer to avoid allocation per line
+    loop {
+        line_buf.clear();
+        let n = reader.read_line(&mut line_buf)?;
+        if n == 0 {
+            break;
+        }
+        line_num += 1;
+
+        let trimmed = line_buf.trim();
+        if trimmed.is_empty() {
             continue;
         }
-        if !looks_like_json_object_line(&l) {
-            bail!("Zeile {}: keine JSON-Objekt-Zeile: {}", i + 1, l.trim_end());
+
+        if !looks_like_json_object_line(trimmed) {
+            bail!("Zeile {}: keine JSON-Objekt-Zeile: {}", line_num, trimmed);
         }
         count += 1;
     }
@@ -136,10 +147,7 @@ fn main() -> Result<()> {
     let token = std::env::var("CHRONIK_TOKEN").ok();
 
     if args.dry_run {
-        eprintln!(
-            "[DRY-RUN] Würde {} Events an {} senden.",
-            count, &args.url
-        );
+        eprintln!("[DRY-RUN] Würde {} Events an {} senden.", count, &args.url);
         if let Some(t) = &token {
             eprintln!("[DRY-RUN] Token: gesetzt ({} Zeichen).", t.len());
         } else {
