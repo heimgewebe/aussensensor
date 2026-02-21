@@ -19,15 +19,22 @@ TMP_LINE_FILE="" # explizit initialisieren
 LOCK_DIR=""      # für Fallback-Locking
 ALLOWED_TYPES=("news" "sensor" "project" "alert" "link")
 
+# shellcheck source=scripts/utils.sh
 source "$SCRIPT_DIR/utils.sh"
 # Generiert eine eindeutige ID für temporäre Dateinamen.
 # Hinweis: Format variiert je nach Tool (UUID vs. Hex-String), ist aber für diesen Zweck hinreichend kollisionssicher.
 tmp_id() {
-  if have uuidgen; then
+  # Allow tests to force fallback without brittle sed patching.
+  # Set to 1 to disable individual sources.
+  local disable_uuidgen="${AUSSEN_DISABLE_UUIDGEN:-0}"
+  local disable_openssl="${AUSSEN_DISABLE_OPENSSL:-0}"
+  local disable_python3="${AUSSEN_DISABLE_PYTHON3:-0}"
+
+  if [[ "$disable_uuidgen" != "1" ]] && have uuidgen; then
     uuidgen
-  elif have openssl; then
+  elif [[ "$disable_openssl" != "1" ]] && have openssl; then
     openssl rand -hex 16
-  elif have python3; then
+  elif [[ "$disable_python3" != "1" ]] && have python3; then
     python3 -c 'import uuid; print(uuid.uuid4())'
   else
     echo "$RANDOM-$RANDOM-$$-$(date +%s)"

@@ -19,6 +19,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# shellcheck source=scripts/utils.sh
 source "$SCRIPT_DIR/utils.sh"
 
 check_deps() {
