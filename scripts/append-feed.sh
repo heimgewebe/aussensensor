@@ -12,20 +12,14 @@ declare -a tags_array=()
 OUTPUT_FILE=""
 
 # Konstanten
-SCRIPT_DIR=""
-REPO_ROOT=""
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOCK_FILE=""     # wird aus OUTPUT_FILE abgeleitet
 TMP_LINE_FILE="" # explizit initialisieren
 LOCK_DIR=""      # für Fallback-Locking
 ALLOWED_TYPES=("news" "sensor" "project" "alert" "link")
 
-have() { command -v "$1" >/dev/null 2>&1; }
-need() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    echo "Fehlt: $1" >&2
-    exit 1
-  fi
-}
+source "$SCRIPT_DIR/utils.sh"
 # Generiert eine eindeutige ID für temporäre Dateinamen.
 # Hinweis: Format variiert je nach Tool (UUID vs. Hex-String), ist aber für diesen Zweck hinreichend kollisionssicher.
 tmp_id() {
@@ -386,8 +380,6 @@ append_to_feed() {
 }
 
 main() {
-  SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-  REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
   # Default output file, can be overwritten by -o flag
   OUTPUT_FILE="$REPO_ROOT/export/feed.jsonl"
 

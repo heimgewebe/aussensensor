@@ -19,12 +19,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-need() {
-  command -v "$1" >/dev/null 2>&1 || {
-    echo "Fehler: '$1' wird benötigt, ist aber nicht im PATH." >&2
-    exit 1
-  }
-}
+source "$SCRIPT_DIR/utils.sh"
 
 check_deps() {
   need node
