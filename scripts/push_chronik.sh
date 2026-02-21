@@ -3,13 +3,21 @@
 # Standard-Ingest erfolgt via chronik (/v1/ingest).
 set -euo pipefail
 
-have() { command -v "$1" >/dev/null 2>&1; }
-need() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    echo "Fehlt: $1" >&2
-    exit 1
-  fi
-}
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/utils.sh
+if [[ -f "$SCRIPT_DIR/utils.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "$SCRIPT_DIR/utils.sh"
+else
+  # Fallback: keep script standalone if copied without utils.sh
+  have() { command -v "$1" >/dev/null 2>&1; }
+  need() {
+    if ! have "$1"; then
+      echo "Fehler: '$1' wird benötigt, ist aber nicht im PATH." >&2
+      exit 1
+    fi
+  }
+fi
 
 print_usage() {
   cat <<'USAGE' >&2
@@ -24,7 +32,6 @@ Options:
 USAGE
 }
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 FILE_PATH="$REPO_ROOT/export/feed.jsonl"
 INGEST_URL="${CHRONIK_INGEST_URL:-}"
