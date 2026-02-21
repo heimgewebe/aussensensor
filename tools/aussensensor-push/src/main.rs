@@ -132,6 +132,11 @@ impl<R: Read> Read for JsonlReader<R> {
 fn main() -> Result<()> {
     let args = Args::parse();
 
+    // Protocol check
+    if !args.url.starts_with("http://") && !args.url.starts_with("https://") {
+        bail!("Ungültiges Protokoll in URL '{}'. Nur http:// und https:// sind erlaubt.", args.url);
+    }
+
     // Open file once
     let mut f = File::open(&args.file).with_context(|| format!("open {}", &args.file))?;
 

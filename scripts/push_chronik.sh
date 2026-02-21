@@ -78,6 +78,14 @@ done
   echo "Fehler: CHRONIK_INGEST_URL fehlt und --url wurde nicht übergeben." >&2
   exit 1
 }
+
+case "$INGEST_URL" in
+http://* | https://*) ;;
+*)
+  echo "Fehler: Ungültiges Protokoll in URL '$INGEST_URL'. Nur http:// und https:// sind erlaubt." >&2
+  exit 1
+  ;;
+esac
 [[ -f "$FILE_PATH" ]] || {
   echo "Fehler: Datei '$FILE_PATH' nicht gefunden." >&2
   exit 1
