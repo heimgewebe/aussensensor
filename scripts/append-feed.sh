@@ -20,7 +20,19 @@ LOCK_DIR=""      # für Fallback-Locking
 ALLOWED_TYPES=("news" "sensor" "project" "alert" "link")
 
 # shellcheck source=scripts/utils.sh
-source "$SCRIPT_DIR/utils.sh"
+if [[ -f "$SCRIPT_DIR/utils.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "$SCRIPT_DIR/utils.sh"
+else
+  # Fallback: keep script standalone if copied without utils.sh
+  have() { command -v "$1" >/dev/null 2>&1; }
+  need() {
+    if ! have "$1"; then
+      echo "Fehler: '$1' wird benötigt, ist aber nicht im PATH." >&2
+      exit 1
+    fi
+  }
+fi
 # Generiert eine eindeutige ID für temporäre Dateinamen.
 # Hinweis: Format variiert je nach Tool (UUID vs. Hex-String), ist aber für diesen Zweck hinreichend kollisionssicher.
 tmp_id() {

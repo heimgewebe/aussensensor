@@ -106,6 +106,36 @@ teardown() {
     grep -q "Shell Fallback Test" "$TEST_OUTPUT_FILE"
 }
 
+@test "append-feed.sh runs standalone without utils.sh present" {
+    # Prepare directory structure in TEST_TMPDIR
+    mkdir -p "${TEST_TMPDIR}/scripts_standalone"
+    mkdir -p "${TEST_TMPDIR}/contracts"
+
+    local STANDALONE_SCRIPT="${TEST_TMPDIR}/scripts_standalone/append-feed.sh"
+    cp "$APPEND_FEED" "$STANDALONE_SCRIPT"
+
+    # We do NOT copy utils.sh here.
+    # We still need validate.sh and validate_stream.js because append-feed calls validate.sh
+    cp "$REPO_ROOT/scripts/validate.sh" "${TEST_TMPDIR}/scripts_standalone/validate.sh"
+    cp "$REPO_ROOT/scripts/validate_stream.js" "${TEST_TMPDIR}/scripts_standalone/validate_stream.js"
+    # Note: validate.sh also has the optional sourcing logic now, so it should also work without utils.sh
+
+    # Setze NODE_PATH, damit Node Module im Repo-Root findet
+    export NODE_PATH="$REPO_ROOT/node_modules"
+
+    # Kopiere Schema nach contracts/
+    cp "$REPO_ROOT/contracts/aussen.event.schema.json" "${TEST_TMPDIR}/contracts/aussen.event.schema.json"
+
+    chmod +x "$STANDALONE_SCRIPT"
+
+    # The script should use its internal fallback for have/need
+    run "$STANDALONE_SCRIPT" -t news -s manual -T "Standalone Test" -o "$TEST_OUTPUT_FILE"
+    assert_success
+
+    [ -f "$TEST_OUTPUT_FILE" ]
+    grep -q "Standalone Test" "$TEST_OUTPUT_FILE"
+}
+
 @test "append-feed.sh runs with uuidgen available (default)" {
     if ! command -v uuidgen >/dev/null; then
         skip "uuidgen not available"
