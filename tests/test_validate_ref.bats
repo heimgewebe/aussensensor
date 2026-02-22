@@ -8,11 +8,11 @@ VALIDATE_SCRIPT="$SCRIPT_DIR/validate.sh"
 FIXTURES_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/fixtures/ref-resolution" && pwd)"
 
 setup() {
-  BATS_TMPDIR="$(mktemp -d)"
+  TEST_TMPDIR="$(mktemp -d)"
 }
 
 teardown() {
-  rm -rf "$BATS_TMPDIR"
+  rm -rf "$TEST_TMPDIR"
 }
 
 @test "validate.sh: Resolves relative \$ref in schema" {
@@ -41,7 +41,7 @@ teardown() {
 }
 
 @test "validate.sh: Fails on invalid JSON schema" {
-  local invalid_schema="$BATS_TMPDIR/invalid_schema.json"
+  local invalid_schema="$TEST_TMPDIR/invalid_schema.json"
   echo "{ invalid json" > "$invalid_schema"
 
   run "$VALIDATE_SCRIPT" -s "$invalid_schema" "$FIXTURES_DIR/data-with-ref.jsonl"
