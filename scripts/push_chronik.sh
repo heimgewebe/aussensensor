@@ -79,7 +79,8 @@ done
   exit 1
 }
 
-case "$INGEST_URL" in
+ingest_url_lc="$(printf '%s' "$INGEST_URL" | tr '[:upper:]' '[:lower:]')"
+case "$ingest_url_lc" in
 http://* | https://*) ;;
 *)
   echo "Fehler: Ungültiges Protokoll in URL '$INGEST_URL'. Nur http:// und https:// sind erlaubt." >&2

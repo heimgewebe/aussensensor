@@ -133,7 +133,8 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     // Protocol check
-    if !args.url.starts_with("http://") && !args.url.starts_with("https://") {
+    let url_lower = args.url.to_ascii_lowercase();
+    if !url_lower.starts_with("http://") && !url_lower.starts_with("https://") {
         bail!("Ungültiges Protokoll in URL '{}'. Nur http:// und https:// sind erlaubt.", args.url);
     }
 

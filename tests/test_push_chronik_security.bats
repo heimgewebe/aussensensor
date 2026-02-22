@@ -18,6 +18,12 @@ teardown() {
   [[ "$output" == *"Fehler: Ungültiges Protokoll"* ]]
 }
 
+@test "push_chronik.sh rejects non-http/https URLs (mixed case)" {
+  run "$SCRIPT" --url "FILE:///etc/passwd" --file "$DUMMY_FILE" --dry-run
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Fehler: Ungültiges Protokoll"* ]]
+}
+
 @test "push_chronik.sh accepts http URLs (dry-run)" {
   run "$SCRIPT" --url "http://localhost/ingest" --file "$DUMMY_FILE" --dry-run
   [ "$status" -eq 0 ]
@@ -25,5 +31,15 @@ teardown() {
 
 @test "push_chronik.sh accepts https URLs (dry-run)" {
   run "$SCRIPT" --url "https://localhost/ingest" --file "$DUMMY_FILE" --dry-run
+  [ "$status" -eq 0 ]
+}
+
+@test "push_chronik.sh accepts HTTP URLs (mixed case, dry-run)" {
+  run "$SCRIPT" --url "HTTP://localhost/ingest" --file "$DUMMY_FILE" --dry-run
+  [ "$status" -eq 0 ]
+}
+
+@test "push_chronik.sh accepts HtTp URLs (mixed case, dry-run)" {
+  run "$SCRIPT" --url "HtTp://localhost/ingest" --file "$DUMMY_FILE" --dry-run
   [ "$status" -eq 0 ]
 }
