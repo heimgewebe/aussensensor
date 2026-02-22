@@ -213,6 +213,17 @@ mod tests {
     }
 
     #[test]
+    fn test_jsonl_reader_crlf() {
+        let input = "{\"a\":1}\r\n{\"b\":2}\r\n";
+        let cursor = Cursor::new(input);
+        let mut reader = JsonlReader::new(cursor);
+        let mut output = String::new();
+        reader.read_to_string(&mut output).unwrap();
+        // Expect clean NDJSON with \n
+        assert_eq!(output, "{\"a\":1}\n{\"b\":2}\n");
+    }
+
+    #[test]
     fn test_jsonl_reader_streaming() {
         let input = "{\"a\":1}\n\n{\"b\":2}\n";
         let cursor = Cursor::new(input);
