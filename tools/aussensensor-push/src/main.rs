@@ -54,7 +54,6 @@ fn scan_and_validate(file: &mut File) -> Result<usize> {
 
 struct JsonlReader<R> {
     reader: BufReader<R>,
-    buffer: Vec<u8>,
     cursor: usize,
     line_buf: String,
     line_number: usize,
@@ -64,7 +63,6 @@ impl<R: Read> JsonlReader<R> {
     fn new(inner: R) -> Self {
         Self {
             reader: BufReader::new(inner),
-            buffer: Vec::new(),
             cursor: 0,
             line_buf: String::new(),
             line_number: 0,
@@ -79,49 +77,50 @@ impl<R: Read> Read for JsonlReader<R> {
             return Ok(0);
         }
 
-        while self.cursor >= self.buffer.len() {
-            self.buffer.clear();
-            self.cursor = 0;
+        if self.cursor >= self.line_buf.len() {
             self.line_buf.clear();
+            self.cursor = 0;
 
-            // read_line reads until newline, including it.
-            let n = self.reader.read_line(&mut self.line_buf)?;
-            if n == 0 {
-                return Ok(0); // EOF
-            }
-            self.line_number += 1;
-
-            // Skip empty lines (whitespace only)
-            if self.line_buf.trim().is_empty() {
-                continue;
-            }
-
-            // Consistency Check: Ensure line matches the Pass 1 heuristic.
-            if !looks_like_json_object_line(&self.line_buf) {
-                return Err(std::io::Error::new(
-                    ErrorKind::InvalidData,
-                    format!(
-                        "Zeile {}: keine JSON-Objekt-Zeile: {}",
-                        self.line_number,
-                        self.line_buf.trim_end()
-                    ),
-                ));
-            }
-
-            // Normalize line ending to \n
-            // Remove existing newline chars from the end
-            if self.line_buf.ends_with('\n') {
-                self.line_buf.pop();
-                if self.line_buf.ends_with('\r') {
-                    self.line_buf.pop();
+            loop {
+                // read_line reads until newline, including it.
+                let n = self.reader.read_line(&mut self.line_buf)?;
+                if n == 0 {
+                    return Ok(0); // EOF
                 }
-            }
+                self.line_number += 1;
 
-            self.buffer.extend_from_slice(self.line_buf.as_bytes());
-            self.buffer.push(b'\n');
+                // Skip empty lines (whitespace only)
+                if self.line_buf.trim().is_empty() {
+                    self.line_buf.clear();
+                    continue;
+                }
+
+                // Consistency Check: Ensure line matches the Pass 1 heuristic.
+                if !looks_like_json_object_line(&self.line_buf) {
+                    return Err(std::io::Error::new(
+                        ErrorKind::InvalidData,
+                        format!(
+                            "Zeile {}: keine JSON-Objekt-Zeile: {}",
+                            self.line_number,
+                            self.line_buf.trim_end()
+                        ),
+                    ));
+                }
+
+                // Normalize line ending to \n in-place
+                // Remove existing newline chars from the end
+                if self.line_buf.ends_with('\n') {
+                    self.line_buf.pop();
+                    if self.line_buf.ends_with('\r') {
+                        self.line_buf.pop();
+                    }
+                }
+                self.line_buf.push('\n');
+                break;
+            }
         }
 
-        let remaining = &self.buffer[self.cursor..];
+        let remaining = &self.line_buf.as_bytes()[self.cursor..];
         let to_copy = std::cmp::min(remaining.len(), buf.len());
         buf[..to_copy].copy_from_slice(&remaining[..to_copy]);
         self.cursor += to_copy;
