@@ -97,14 +97,13 @@ impl<R: Read> Read for JsonlReader<R> {
 
                 // Consistency Check: Ensure line matches the Pass 1 heuristic.
                 if !looks_like_json_object_line(&self.line_buf) {
-                    return Err(std::io::Error::new(
-                        ErrorKind::InvalidData,
-                        format!(
-                            "Zeile {}: keine JSON-Objekt-Zeile: {}",
-                            self.line_number,
-                            self.line_buf.trim_end()
-                        ),
-                    ));
+                    let err_msg = format!(
+                        "Zeile {}: keine JSON-Objekt-Zeile: {}",
+                        self.line_number,
+                        self.line_buf.trim_end()
+                    );
+                    self.line_buf.clear(); // Clear buffer to ensure recovery if read is called again
+                    return Err(std::io::Error::new(ErrorKind::InvalidData, err_msg));
                 }
 
                 // Normalize line ending to \n in-place
@@ -249,5 +248,24 @@ mod tests {
         let mut output = String::new();
         reader.read_to_string(&mut output).unwrap();
         assert_eq!(output, "{\"a\":1}\n");
+    }
+
+    #[test]
+    fn test_jsonl_reader_chunked_and_normalization() {
+        // CRLF, empty line, and missing trailing newline
+        let input = "{\"a\":1}\r\n\n{\"b\":2}";
+        let cursor = Cursor::new(input);
+        let mut reader = JsonlReader::new(cursor);
+        let mut output = Vec::new();
+        let mut buf = [0u8; 3]; // Small buffer to force chunking
+        while let Ok(n) = reader.read(&mut buf) {
+            if n == 0 {
+                break;
+            }
+            output.extend_from_slice(&buf[..n]);
+        }
+        let out_str = String::from_utf8(output).unwrap();
+        // Expect clean normalization
+        assert_eq!(out_str, "{\"a\":1}\n{\"b\":2}\n");
     }
 }
