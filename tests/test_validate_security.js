@@ -19,10 +19,10 @@ function runTest(schema, baseDir, data) {
 
 console.log('Running security tests...');
 
-// 1. Path traversal (relative traversal escape ../)
-// We create a symlink inside the base directory that points outside.
-// This is a reliable and portable way to trigger the realpath-based guard.
-console.log('Test 1: Path traversal (relative traversal escape ../)');
+// 1. Symlink escape (file)
+// A file symlink inside base points to a file outside.
+// realpath guard must deny access.
+console.log('Test 1: Symlink escape (file)');
 const baseDir = path.join(FIXTURES, 'base');
 const traversalLink = path.join(baseDir, 'traversal-link.json');
 let traversalCreated = false;
@@ -34,21 +34,19 @@ try {
     fs.symlinkSync('../outside.json', traversalLink, 'file');
     traversalCreated = true;
 } catch (e) {
-    console.log(`SKIPPED: Path traversal test (reason: could not create symlink - ${e.message})`);
+    console.log(`SKIPPED: Symlink escape (file) test (reason: could not create symlink - ${e.message})`);
 }
 
 if (traversalCreated) {
-    // root-traversal.json should now ref "traversal-link.json"
-    // Wait, let's just make it ref that statically.
     const res1 = runTest(
         path.join(FIXTURES, 'base/root-traversal.json'),
         baseDir,
         '{"foo": "bar"}'
     );
     if (res1.status !== 0 && res1.stderr.includes('Access denied')) {
-        console.log('PASSED: Path traversal blocked');
+        console.log('PASSED: Symlink escape (file) blocked');
     } else {
-        console.error('FAILED: Path traversal NOT blocked correctly');
+        console.error('FAILED: Symlink escape (file) NOT blocked correctly');
         console.error('Exit code:', res1.status);
         console.error('Stderr:', res1.stderr);
         try { fs.unlinkSync(traversalLink); } catch (e) {}
@@ -57,7 +55,7 @@ if (traversalCreated) {
     try { fs.unlinkSync(traversalLink); } catch (e) {}
 }
 
-// 2. Symlink escape (directory traversal)
+// 2. Symlink escape (directory)
 console.log('Test 2: Symlink escape (directory)');
 const linkPath = path.join(baseDir, 'link-to-parent');
 let symlinkCreated = false;
@@ -69,19 +67,20 @@ try {
     fs.symlinkSync('..', linkPath, 'dir');
     symlinkCreated = true;
 } catch (e) {
-    console.log(`SKIPPED: Symlink escape test (reason: could not create symlink - ${e.message})`);
+    console.log(`SKIPPED: Symlink escape (directory) test (reason: could not create symlink - ${e.message})`);
 }
 
 if (symlinkCreated) {
+    // Schema refers to link-to-parent/outside.json which resolves to base/outside.json via symlink
     const res2 = runTest(
         path.join(baseDir, 'root-symlink.json'),
         baseDir,
         '{"foo": "bar"}'
     );
     if (res2.status !== 0 && res2.stderr.includes('Access denied')) {
-        console.log('PASSED: Symlink escape blocked');
+        console.log('PASSED: Symlink escape (directory) blocked');
     } else {
-        console.error('FAILED: Symlink escape NOT blocked correctly');
+        console.error('FAILED: Symlink escape (directory) NOT blocked correctly');
         console.error('Exit code:', res2.status);
         console.error('Stderr:', res2.stderr);
         try { fs.unlinkSync(linkPath); } catch (e) {}
