@@ -45,8 +45,14 @@ async function loadSchema(uri) {
   }
 
   // Resolve path relative to provided baseDir or schema file directory
-  const effectiveBaseDir = baseDirArg || path.dirname(path.resolve(schemaPath));
+  const effectiveBaseDir = path.resolve(baseDirArg || path.dirname(path.resolve(schemaPath)));
   const filePath = path.resolve(effectiveBaseDir, cleanUri);
+
+  // Security: Prevent path traversal by ensuring filePath is within effectiveBaseDir
+  const relative = path.relative(effectiveBaseDir, filePath);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`Access denied: ${uri} is outside of base directory ${effectiveBaseDir}`);
+  }
 
   if (!fs.existsSync(filePath)) {
     throw new Error(`Referenced schema not found: ${filePath} (from ${uri})`);
