@@ -258,7 +258,8 @@ mod tests {
         let mut reader = JsonlReader::new(cursor);
         let mut output = Vec::new();
         let mut buf = [0u8; 3]; // Small buffer to force chunking
-        while let Ok(n) = reader.read(&mut buf) {
+        loop {
+            let n = reader.read(&mut buf).expect("read should not fail");
             if n == 0 {
                 break;
             }
