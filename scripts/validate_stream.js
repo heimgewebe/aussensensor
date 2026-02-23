@@ -4,6 +4,10 @@ const readline = require('readline');
 const Ajv = require('ajv');
 const addFormats = require('ajv-formats');
 
+function getErrorMessage(e) {
+  return e instanceof Error ? e.message : String(e);
+}
+
 const schemaPath = process.argv[2];
 // Optional: allow overriding base directory for $ref resolution
 // (useful when validating a temp file that should resolve refs relative to original location)
@@ -23,7 +27,7 @@ let schema;
 try {
   schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
 } catch (e) {
-  console.error(`Failed to parse schema: ${e instanceof Error ? e.message : String(e)}`);
+  console.error(`Failed to parse schema: ${getErrorMessage(e)}`);
   process.exit(1);
 }
 
@@ -34,8 +38,6 @@ if (!schema || typeof schema !== 'object') {
 
 // Helper to load schemas from local files
 async function loadSchema(uri) {
-  const getErrorMessage = (e) => (e instanceof Error ? e.message : String(e));
-
   // Remove hash fragment
   const cleanUri = uri.replace(/#.*/, '');
   if (!cleanUri) {
@@ -95,7 +97,7 @@ addFormats(ajv);
   try {
     validate = await ajv.compileAsync(schema);
   } catch (e) {
-    console.error(`Failed to compile schema (${schemaPath}): ${e instanceof Error ? e.message : String(e)}`);
+    console.error(`Failed to compile schema (${schemaPath}): ${getErrorMessage(e)}`);
     process.exit(1);
   }
 
@@ -116,7 +118,7 @@ addFormats(ajv);
     try {
       data = JSON.parse(trimmed);
     } catch (e) {
-      console.error(`Error parsing JSON on line ${lineCount}: ${e instanceof Error ? e.message : String(e)}`);
+      console.error(`Error parsing JSON on line ${lineCount}: ${getErrorMessage(e)}`);
       process.exit(1);
     }
 
