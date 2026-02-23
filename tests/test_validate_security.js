@@ -8,7 +8,7 @@ const FIXTURES = path.resolve(__dirname, 'fixtures/security');
 function runTest(schema, baseDir, data) {
     const res = spawnSync('node', [SCRIPT, schema, baseDir], {
         input: data,
-        env: { ...process.env, NODE_PATH: '/usr/share/nodejs' }
+        env: process.env
     });
     return {
         status: res.status,
@@ -19,8 +19,10 @@ function runTest(schema, baseDir, data) {
 
 console.log('Running security tests...');
 
-// 1. Path traversal
-console.log('Test 1: Path traversal');
+// 1. Path traversal (absolute)
+// Using an absolute path to a file outside the base directory.
+// This bypasses Ajv's relative resolution and directly tests the loadSchema guard.
+console.log('Test 1: Path traversal (absolute path)');
 const res1 = runTest(
     path.join(FIXTURES, 'base/root-traversal.json'),
     path.join(FIXTURES, 'base'),
@@ -29,24 +31,44 @@ const res1 = runTest(
 if (res1.status !== 0 && res1.stderr.includes('Access denied')) {
     console.log('PASSED: Path traversal blocked');
 } else {
-    console.error('FAILED: Path traversal NOT blocked');
-    console.error(res1.stderr || res1.stdout);
+    console.error('FAILED: Path traversal NOT blocked correctly');
+    console.error('Exit code:', res1.status);
+    console.error('Stderr:', res1.stderr);
     process.exit(1);
 }
 
 // 2. Symlink escape
+// Creates a symlink at runtime and attempts to access it.
 console.log('Test 2: Symlink escape');
-const res2 = runTest(
-    path.join(FIXTURES, 'base/root-symlink.json'),
-    path.join(FIXTURES, 'base'),
-    '{"foo": "bar"}'
-);
-if (res2.status !== 0 && res2.stderr.includes('Access denied')) {
-    console.log('PASSED: Symlink escape blocked');
-} else {
-    console.error('FAILED: Symlink escape NOT blocked');
-    console.error(res2.stderr || res2.stdout);
-    process.exit(1);
+const linkPath = path.join(FIXTURES, 'base', 'link-to-parent');
+let symlinkCreated = false;
+
+try {
+    if (fs.existsSync(linkPath)) {
+        fs.unlinkSync(linkPath);
+    }
+    fs.symlinkSync('..', linkPath, 'dir');
+    symlinkCreated = true;
+} catch (e) {
+    console.log(`SKIPPED: Symlink escape test (reason: could not create symlink - ${e.message})`);
+}
+
+if (symlinkCreated) {
+    const res2 = runTest(
+        path.join(FIXTURES, 'base/root-symlink.json'),
+        path.join(FIXTURES, 'base'),
+        '{"foo": "bar"}'
+    );
+    if (res2.status !== 0 && res2.stderr.includes('Access denied')) {
+        console.log('PASSED: Symlink escape blocked');
+    } else {
+        console.error('FAILED: Symlink escape NOT blocked correctly');
+        console.error('Exit code:', res2.status);
+        console.error('Stderr:', res2.stderr);
+        try { fs.unlinkSync(linkPath); } catch (e) {}
+        process.exit(1);
+    }
+    try { fs.unlinkSync(linkPath); } catch (e) {}
 }
 
 // 3. Legit ref
@@ -65,4 +87,4 @@ if (res3.status === 0) {
     process.exit(1);
 }
 
-console.log('All security tests passed!');
+console.log('All security tests completed successfully!');

@@ -1,1 +1,1 @@
-{"type": "object", "properties": { "foo": { "$ref": "/etc/passwd" } } }
+{"type": "object", "properties": { "foo": { "$ref": "/app/tests/fixtures/security/outside.json" } } }
