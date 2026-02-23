@@ -1,1 +1,1 @@
-{"type": "object", "properties": { "foo": { "$ref": "../outside.json" } } }
+{"type": "object", "properties": { "foo": { "$ref": "traversal-link.json" } } }

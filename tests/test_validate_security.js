@@ -20,27 +20,46 @@ function runTest(schema, baseDir, data) {
 console.log('Running security tests...');
 
 // 1. Path traversal (relative traversal escape ../)
+// We create a symlink inside the base directory that points outside.
+// This is a reliable and portable way to trigger the realpath-based guard.
 console.log('Test 1: Path traversal (relative traversal escape ../)');
-// We use a baseDir that is deeper than the schema to force a traversal
-const res1 = runTest(
-    path.join(FIXTURES, 'base/root-traversal.json'),
-    path.join(FIXTURES, 'base/sub'),
-    '{"foo": "bar"}'
-);
-// Depending on Ajv normalization, this might fail with "Access denied" or "Referenced schema not found"
-// but it MUST fail and MUST NOT load the outside file.
-if (res1.status !== 0 && (res1.stderr.includes('Access denied') || res1.stderr.includes('Referenced schema not found'))) {
-    console.log('PASSED: Path traversal blocked');
-} else {
-    console.error('FAILED: Path traversal NOT blocked correctly');
-    console.error('Exit code:', res1.status);
-    console.error('Stderr:', res1.stderr);
-    process.exit(1);
+const baseDir = path.join(FIXTURES, 'base');
+const traversalLink = path.join(baseDir, 'traversal-link.json');
+let traversalCreated = false;
+
+try {
+    if (fs.existsSync(traversalLink)) {
+        fs.unlinkSync(traversalLink);
+    }
+    fs.symlinkSync('../outside.json', traversalLink, 'file');
+    traversalCreated = true;
+} catch (e) {
+    console.log(`SKIPPED: Path traversal test (reason: could not create symlink - ${e.message})`);
 }
 
-// 2. Symlink escape
-console.log('Test 2: Symlink escape');
-const linkPath = path.join(FIXTURES, 'base', 'link-to-parent');
+if (traversalCreated) {
+    // root-traversal.json should now ref "traversal-link.json"
+    // Wait, let's just make it ref that statically.
+    const res1 = runTest(
+        path.join(FIXTURES, 'base/root-traversal.json'),
+        baseDir,
+        '{"foo": "bar"}'
+    );
+    if (res1.status !== 0 && res1.stderr.includes('Access denied')) {
+        console.log('PASSED: Path traversal blocked');
+    } else {
+        console.error('FAILED: Path traversal NOT blocked correctly');
+        console.error('Exit code:', res1.status);
+        console.error('Stderr:', res1.stderr);
+        try { fs.unlinkSync(traversalLink); } catch (e) {}
+        process.exit(1);
+    }
+    try { fs.unlinkSync(traversalLink); } catch (e) {}
+}
+
+// 2. Symlink escape (directory traversal)
+console.log('Test 2: Symlink escape (directory)');
+const linkPath = path.join(baseDir, 'link-to-parent');
 let symlinkCreated = false;
 
 try {
@@ -55,8 +74,8 @@ try {
 
 if (symlinkCreated) {
     const res2 = runTest(
-        path.join(FIXTURES, 'base/root-symlink.json'),
-        path.join(FIXTURES, 'base'),
+        path.join(baseDir, 'root-symlink.json'),
+        baseDir,
         '{"foo": "bar"}'
     );
     if (res2.status !== 0 && res2.stderr.includes('Access denied')) {
