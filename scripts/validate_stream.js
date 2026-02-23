@@ -4,6 +4,10 @@ const readline = require('readline');
 const Ajv = require('ajv');
 const addFormats = require('ajv-formats');
 
+function getErrorMessage(e) {
+  return e instanceof Error ? e.message : String(e);
+}
+
 const schemaPath = process.argv[2];
 // Optional: allow overriding base directory for $ref resolution
 // (useful when validating a temp file that should resolve refs relative to original location)
@@ -23,7 +27,7 @@ let schema;
 try {
   schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
 } catch (e) {
-  console.error(`Failed to parse schema: ${e.message}`);
+  console.error(`Failed to parse schema: ${getErrorMessage(e)}`);
   process.exit(1);
 }
 
@@ -45,18 +49,38 @@ async function loadSchema(uri) {
   }
 
   // Resolve path relative to provided baseDir or schema file directory
-  const effectiveBaseDir = baseDirArg || path.dirname(path.resolve(schemaPath));
+  const effectiveBaseDir = path.resolve(baseDirArg || path.dirname(path.resolve(schemaPath)));
   const filePath = path.resolve(effectiveBaseDir, cleanUri);
 
   if (!fs.existsSync(filePath)) {
     throw new Error(`Referenced schema not found: ${filePath} (from ${uri})`);
   }
 
+  // Security: Use realpath to prevent path traversal and symlink escape
+  let baseReal, targetReal;
+  try {
+    baseReal = fs.realpathSync(effectiveBaseDir);
+  } catch (e) {
+    throw new Error(`Failed to resolve base directory ${effectiveBaseDir}: ${getErrorMessage(e)}`);
+  }
+
+  try {
+    targetReal = fs.realpathSync(filePath);
+  } catch (e) {
+    throw new Error(`Failed to resolve referenced schema path ${filePath}: ${getErrorMessage(e)}`);
+  }
+
+  const allowed = targetReal === baseReal || targetReal.startsWith(baseReal + path.sep);
+
+  if (!allowed) {
+    throw new Error(`Access denied: ${uri} (resolved to ${targetReal}) is outside of base directory ${baseReal}`);
+  }
+
   try {
     const content = fs.readFileSync(filePath, 'utf8');
     return JSON.parse(content);
   } catch (e) {
-    throw new Error(`Failed to parse referenced schema ${filePath}: ${e.message}`);
+    throw new Error(`Failed to parse referenced schema ${filePath}: ${getErrorMessage(e)}`);
   }
 }
 
@@ -73,7 +97,7 @@ addFormats(ajv);
   try {
     validate = await ajv.compileAsync(schema);
   } catch (e) {
-    console.error(`Failed to compile schema (${schemaPath}): ${e.message}`);
+    console.error(`Failed to compile schema (${schemaPath}): ${getErrorMessage(e)}`);
     process.exit(1);
   }
 
@@ -94,7 +118,7 @@ addFormats(ajv);
     try {
       data = JSON.parse(trimmed);
     } catch (e) {
-      console.error(`Error parsing JSON on line ${lineCount}: ${e.message}`);
+      console.error(`Error parsing JSON on line ${lineCount}: ${getErrorMessage(e)}`);
       process.exit(1);
     }
 

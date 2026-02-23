@@ -1,0 +1,1 @@
+{"type": "object", "properties": { "foo": { "$ref": "link-to-parent/outside.json" } } }
