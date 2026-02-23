@@ -19,12 +19,21 @@ function runTest(schema, baseDir, data) {
 
 console.log('Running security tests...');
 
-// 1. Path traversal (absolute)
-// Using an absolute path to a file outside the base directory.
-// This bypasses Ajv's relative resolution and directly tests the loadSchema guard.
-console.log('Test 1: Path traversal (absolute path)');
+// 1. Path traversal (absolute path escape)
+// We generate the fixture at runtime to ensure the absolute path is correct for this environment.
+console.log('Test 1: Path traversal (absolute path escape)');
+const traversalSchemaPath = path.join(FIXTURES, 'base/root-traversal.json');
+const outsideFile = path.join(FIXTURES, 'outside.json');
+const schema = {
+    type: "object",
+    properties: {
+        foo: { "$ref": outsideFile }
+    }
+};
+fs.writeFileSync(traversalSchemaPath, JSON.stringify(schema));
+
 const res1 = runTest(
-    path.join(FIXTURES, 'base/root-traversal.json'),
+    traversalSchemaPath,
     path.join(FIXTURES, 'base'),
     '{"foo": "bar"}'
 );
@@ -38,7 +47,6 @@ if (res1.status !== 0 && res1.stderr.includes('Access denied')) {
 }
 
 // 2. Symlink escape
-// Creates a symlink at runtime and attempts to access it.
 console.log('Test 2: Symlink escape');
 const linkPath = path.join(FIXTURES, 'base', 'link-to-parent');
 let symlinkCreated = false;
@@ -54,8 +62,18 @@ try {
 }
 
 if (symlinkCreated) {
+    // Schema refers to link-to-parent/outside.json which resolves to ../outside.json
+    const symlinkSchemaPath = path.join(FIXTURES, 'base/root-symlink.json');
+    const symlinkSchema = {
+        type: "object",
+        properties: {
+            foo: { "$ref": "link-to-parent/outside.json" }
+        }
+    };
+    fs.writeFileSync(symlinkSchemaPath, JSON.stringify(symlinkSchema));
+
     const res2 = runTest(
-        path.join(FIXTURES, 'base/root-symlink.json'),
+        symlinkSchemaPath,
         path.join(FIXTURES, 'base'),
         '{"foo": "bar"}'
     );
