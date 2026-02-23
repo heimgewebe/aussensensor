@@ -23,7 +23,7 @@ let schema;
 try {
   schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
 } catch (e) {
-  console.error(`Failed to parse schema: ${e.message}`);
+  console.error(`Failed to parse schema: ${e instanceof Error ? e.message : String(e)}`);
   process.exit(1);
 }
 
@@ -34,6 +34,8 @@ if (!schema || typeof schema !== 'object') {
 
 // Helper to load schemas from local files
 async function loadSchema(uri) {
+  const getErrorMessage = (e) => (e instanceof Error ? e.message : String(e));
+
   // Remove hash fragment
   const cleanUri = uri.replace(/#.*/, '');
   if (!cleanUri) {
@@ -57,13 +59,13 @@ async function loadSchema(uri) {
   try {
     baseReal = fs.realpathSync(effectiveBaseDir);
   } catch (e) {
-    throw new Error(`Failed to resolve base directory ${effectiveBaseDir}: ${e.message}`);
+    throw new Error(`Failed to resolve base directory ${effectiveBaseDir}: ${getErrorMessage(e)}`);
   }
 
   try {
     targetReal = fs.realpathSync(filePath);
   } catch (e) {
-    throw new Error(`Failed to resolve referenced schema path ${filePath}: ${e.message}`);
+    throw new Error(`Failed to resolve referenced schema path ${filePath}: ${getErrorMessage(e)}`);
   }
 
   const allowed = targetReal === baseReal || targetReal.startsWith(baseReal + path.sep);
@@ -76,7 +78,7 @@ async function loadSchema(uri) {
     const content = fs.readFileSync(filePath, 'utf8');
     return JSON.parse(content);
   } catch (e) {
-    throw new Error(`Failed to parse referenced schema ${filePath}: ${e.message}`);
+    throw new Error(`Failed to parse referenced schema ${filePath}: ${getErrorMessage(e)}`);
   }
 }
 
@@ -93,7 +95,7 @@ addFormats(ajv);
   try {
     validate = await ajv.compileAsync(schema);
   } catch (e) {
-    console.error(`Failed to compile schema (${schemaPath}): ${e.message}`);
+    console.error(`Failed to compile schema (${schemaPath}): ${e instanceof Error ? e.message : String(e)}`);
     process.exit(1);
   }
 
@@ -114,7 +116,7 @@ addFormats(ajv);
     try {
       data = JSON.parse(trimmed);
     } catch (e) {
-      console.error(`Error parsing JSON on line ${lineCount}: ${e.message}`);
+      console.error(`Error parsing JSON on line ${lineCount}: ${e instanceof Error ? e.message : String(e)}`);
       process.exit(1);
     }
 
