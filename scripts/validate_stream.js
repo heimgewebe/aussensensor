@@ -53,8 +53,19 @@ async function loadSchema(uri) {
   }
 
   // Security: Use realpath to prevent path traversal and symlink escape
-  const baseReal = fs.realpathSync(effectiveBaseDir);
-  const targetReal = fs.realpathSync(filePath);
+  let baseReal, targetReal;
+  try {
+    baseReal = fs.realpathSync(effectiveBaseDir);
+  } catch (e) {
+    throw new Error(`Failed to resolve base directory ${effectiveBaseDir}: ${e.message}`);
+  }
+
+  try {
+    targetReal = fs.realpathSync(filePath);
+  } catch (e) {
+    throw new Error(`Failed to resolve referenced schema path ${filePath}: ${e.message}`);
+  }
+
   const allowed = targetReal === baseReal || targetReal.startsWith(baseReal + path.sep);
 
   if (!allowed) {

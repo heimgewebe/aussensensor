@@ -71,7 +71,7 @@ try {
 }
 
 if (symlinkCreated) {
-    // Schema refers to link-to-parent/outside.json which resolves to base/outside.json via symlink
+    // Schema refers to link-to-parent/outside.json which resolves (via symlinked directory) to ../outside.json outside baseDir.
     const res2 = runTest(
         path.join(baseDir, 'root-symlink.json'),
         baseDir,
