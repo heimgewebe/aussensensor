@@ -99,6 +99,11 @@ esac
   exit 1
 }
 
+if [[ ! -s "$FILE_PATH" ]]; then
+  echo "Fehler: Datei '$FILE_PATH' ist leer. Abbruch, um leeren Push zu verhindern." >&2
+  exit 1
+fi
+
 # Bestimme den Pfad zum aussensensor-push Binary
 PUSH_BIN=""
 if have aussensensor-push; then
@@ -132,7 +137,7 @@ else
     head -n5 "$FILE_PATH" >&2 || true
     exit 0
   fi
-  CURL_ARGS=("-sS" "-H" "content-type: $CONTENT_TYPE" "--data-binary" "@$FILE_PATH")
+  CURL_ARGS=("-sS" "--max-time" "60" "--connect-timeout" "10" "-H" "content-type: $CONTENT_TYPE" "--data-binary" "@$FILE_PATH")
   if [[ -n "$AUTH_TOKEN" ]]; then
     CURL_ARGS+=("-H" "x-auth: $AUTH_TOKEN")
   fi

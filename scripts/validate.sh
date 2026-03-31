@@ -108,7 +108,6 @@ done
 # weil ajv-cli@5 das Meta-Schema typischerweise unter http:// registriert.
 sed \
   -e 's|https://json-schema.org/draft/2020-12/schema|http://json-schema.org/draft-07/schema#|g' \
-  -e 's|https://json-schema.org/draft-07/schema#|http://json-schema.org/draft-07/schema#|g' \
   "$SCHEMA_FILE" > "$TMP_SCHEMA_FILE"
 
 

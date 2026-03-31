@@ -61,8 +61,8 @@ Siehe [docs/runbook.md](docs/runbook.md). CI validiert `export/feed.jsonl` gegen
 # Für Positional-Mode siehe ./scripts/append-feed.sh -h
 ```
 - `source`: Menschlich lesbarer Bezeichner (z. B. `heise`, `dwd`).
-- `type`: Eine der Kategorien `news|sensor|project|alert`.
-- `title`, `summary`, `url`: Inhalte des Ereignisses (`summary` ≤ 500 Zeichen). Bei fehlenden Angaben werden leere Strings geschrieben, um den Contract vollständig zu befüllen.
+- `type`: Eine der Kategorien `news|sensor|project|alert|link`.
+- `title`, `summary`, `url`: Inhalte des Ereignisses (`summary` ≤ 2000 Zeichen). Bei fehlenden Angaben werden leere Strings geschrieben, um den Contract vollständig zu befüllen.
 - `tags`: optionale Liste einzelner Tags (z. B. `rss:demo`, `topic:klima`). Das Skript serialisiert sie immer als JSON-Array (`[]`, wenn keine Tags übergeben wurden) und schreibt jede Zeile als kompaktes JSON-Objekt (NDJSON).
 - Das Skript erzwingt Pflichtfelder, validiert Typen und prüft die Summary-Länge mit dem JSON-Schema, bevor der Eintrag in `export/feed.jsonl` angehängt wird.
 
