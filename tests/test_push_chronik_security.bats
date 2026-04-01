@@ -43,3 +43,21 @@ teardown() {
   run "$SCRIPT" --url "HtTp://localhost/ingest" --file "$DUMMY_FILE" --dry-run
   [ "$status" -eq 0 ]
 }
+
+@test "push_chronik.sh rejects empty file" {
+  local empty_file="$TEST_TMPDIR/empty.jsonl"
+  touch "$empty_file"
+  run "$SCRIPT" --url "http://localhost/ingest" --file "$empty_file"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"ist leer"* ]]
+}
+
+@test "push_chronik.sh accepts CURL_CONNECT_TIMEOUT env var (dry-run)" {
+  run env CURL_CONNECT_TIMEOUT=5 "$SCRIPT" --url "http://localhost/ingest" --file "$DUMMY_FILE" --dry-run
+  [ "$status" -eq 0 ]
+}
+
+@test "push_chronik.sh accepts CURL_MAX_TIME env var (dry-run)" {
+  run env CURL_MAX_TIME=30 "$SCRIPT" --url "http://localhost/ingest" --file "$DUMMY_FILE" --dry-run
+  [ "$status" -eq 0 ]
+}

@@ -29,6 +29,12 @@ Options:
       --content-type CT  Content-Type (Standard: application/x-ndjson)
       --dry-run          Keine Übertragung, nur Anzeige der Aktion
   -h, --help             Hilfe anzeigen
+
+Umgebungsvariablen:
+  CHRONIK_INGEST_URL     Ziel-Endpoint (wird von --url überschrieben)
+  CHRONIK_TOKEN          Auth-Token (Header x-auth)
+  CURL_CONNECT_TIMEOUT   curl --connect-timeout in Sekunden (Standard: 10)
+  CURL_MAX_TIME          curl --max-time in Sekunden (Standard: 60)
 USAGE
 }
 
@@ -37,6 +43,8 @@ FILE_PATH="$REPO_ROOT/export/feed.jsonl"
 INGEST_URL="${CHRONIK_INGEST_URL:-}"
 AUTH_TOKEN="${CHRONIK_TOKEN:-}"
 CONTENT_TYPE="${CONTENT_TYPE:-application/x-ndjson}"
+CURL_CONNECT_TIMEOUT="${CURL_CONNECT_TIMEOUT:-10}"
+CURL_MAX_TIME="${CURL_MAX_TIME:-60}"
 DRY_RUN=0
 
 while [[ $# -gt 0 ]]; do
@@ -137,7 +145,7 @@ else
     head -n5 "$FILE_PATH" >&2 || true
     exit 0
   fi
-  CURL_ARGS=("-sS" "--max-time" "60" "--connect-timeout" "10" "-H" "content-type: $CONTENT_TYPE" "--data-binary" "@$FILE_PATH")
+  CURL_ARGS=("-sS" "--max-time" "$CURL_MAX_TIME" "--connect-timeout" "$CURL_CONNECT_TIMEOUT" "-H" "content-type: $CONTENT_TYPE" "--data-binary" "@$FILE_PATH")
   if [[ -n "$AUTH_TOKEN" ]]; then
     CURL_ARGS+=("-H" "x-auth: $AUTH_TOKEN")
   fi

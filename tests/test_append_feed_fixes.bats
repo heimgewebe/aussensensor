@@ -144,3 +144,14 @@ teardown() {
     run "$APPEND_FEED" -t news -s manual -T "Default UUID Test" -o "$TEST_OUTPUT_FILE"
     assert_success
 }
+
+@test "append-feed.sh fails with clear message when date command fails" {
+    local fake_bin="$TEST_TMPDIR/fakebin"
+    mkdir -p "$fake_bin"
+    printf '#!/usr/bin/env bash\nexit 1\n' > "$fake_bin/date"
+    chmod +x "$fake_bin/date"
+
+    run env PATH="$fake_bin:$PATH" "$APPEND_FEED" -t news -s manual -T "Date Fail Test" -o "$TEST_OUTPUT_FILE"
+    assert_failure
+    assert_output --partial "Fehler: Zeitstempel konnte nicht erzeugt werden."
+}
