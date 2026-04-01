@@ -33,6 +33,7 @@ Options:
 Umgebungsvariablen:
   CHRONIK_INGEST_URL     Ziel-Endpoint (wird von --url überschrieben)
   CHRONIK_TOKEN          Auth-Token (Header x-auth)
+  CONTENT_TYPE           Content-Type für Upload (Standard: application/x-ndjson; wird von --content-type überschrieben)
   CURL_CONNECT_TIMEOUT   curl --connect-timeout in Sekunden (Standard: 10)
   CURL_MAX_TIME          curl --max-time in Sekunden (Standard: 60)
 USAGE

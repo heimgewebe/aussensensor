@@ -62,7 +62,7 @@ Siehe [docs/runbook.md](docs/runbook.md). CI validiert `export/feed.jsonl` gegen
 ```
 - `source`: Menschlich lesbarer Bezeichner (z. B. `heise`, `dwd`).
 - `type`: Eine der Kategorien `news|sensor|project|alert|link`.
-- `title`, `summary`, `url`: Inhalte des Ereignisses (`summary` ≤ 2000 Zeichen). Bei fehlenden Angaben werden leere Strings geschrieben, um den Contract vollständig zu befüllen.
+- `title`, `summary`, `url`: Inhalte des Ereignisses (`summary` ≤ 2000 Zeichen). `summary` wird bei fehlender Angabe als leerer String geschrieben; `url` ist optional und wird nur gesetzt, wenn übergeben.
 - `tags`: optionale Liste einzelner Tags (z. B. `rss:demo`, `topic:klima`). Das Skript serialisiert sie immer als JSON-Array (`[]`, wenn keine Tags übergeben wurden) und schreibt jede Zeile als kompaktes JSON-Objekt (NDJSON).
 - Das Skript erzwingt Pflichtfelder, validiert Typen und prüft die Summary-Länge mit dem JSON-Schema, bevor der Eintrag in `export/feed.jsonl` angehängt wird.
 
@@ -129,7 +129,7 @@ sudo install -m 0755 target/release/aussensensor-push /usr/local/bin/
 Die Push-Skripte verwenden das Binary automatisch, wenn vorhanden (sonst `curl`).
 
 ## Ereignisschema & Datenqualität
-- Pflichtfelder laut Contract: `ts` (ISO-8601), `type` (`news|sensor|project|alert`), `source`, `title`. Darüber hinaus werden `summary`, `url` und `tags[]` immer geschrieben (leere Strings bzw. leeres Array), damit Downstream-Services fixe Spalten haben.
+- Pflichtfelder laut Contract: `ts` (ISO-8601), `type` (`news|sensor|project|alert|link`), `source`, `title`. `summary` wird bei fehlender Angabe als leerer String geschrieben; `url` ist optional und wird nur gesetzt, wenn übergeben. `tags[]` wird immer als JSON-Array geschrieben (`[]`, wenn keine Tags übergeben wurden), damit Downstream-Services fixe Spalten haben.
 - **Keine** zusätzlichen Felder erlaubt (`additionalProperties: false`).
 - Tags sind freie Strings (z. B. `rss:demo`, `topic:klima`). Sie werden als JSON-Array geschrieben.
 - Das Append-Skript setzt `ts` automatisch, serialisiert fehlende Tags als leeres Array und schreibt pro Ereignis eine NDJSON-Zeile.
