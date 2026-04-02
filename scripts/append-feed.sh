@@ -309,7 +309,10 @@ validate_args() {
 
 build_json() {
   local ts
-  ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" || {
+    echo "Fehler: Zeitstempel konnte nicht erzeugt werden." >&2
+    exit 1
+  }
 
   # Convert tags array to JSON array
   local tags_json="[]"
@@ -331,8 +334,8 @@ build_json() {
       "type": $type,
       "source": $source,
       "title": $title,
-      "summary": ($summary // ""),
-      "tags": ($tags // [])
+      "summary": $summary,
+      "tags": $tags
     } + (if $url != "" then {"url": $url} else {} end)'
 }
 

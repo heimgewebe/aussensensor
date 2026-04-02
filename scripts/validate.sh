@@ -103,12 +103,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 # --- Schema patching ----------------------------------------------------------
-# ajv-cli@5 hat begrenzte 2020-12 Unterstützung. Wir patchen $schema on-the-fly auf Draft-07.
-# Zusätzlich normalisieren wir Draft-07 meta-schema URLs auf http:// (nicht https://),
-# weil ajv-cli@5 das Meta-Schema typischerweise unter http:// registriert.
+# ajv-cli@5 hat begrenzte 2020-12 Unterstützung. Das deklarierte 2020-12-Metaschema
+# wird on-the-fly auf das von ajv-cli@5 erwartete Draft-07-HTTP-Metaschema umgebogen.
 sed \
   -e 's|https://json-schema.org/draft/2020-12/schema|http://json-schema.org/draft-07/schema#|g' \
-  -e 's|https://json-schema.org/draft-07/schema#|http://json-schema.org/draft-07/schema#|g' \
   "$SCHEMA_FILE" > "$TMP_SCHEMA_FILE"
 
 
