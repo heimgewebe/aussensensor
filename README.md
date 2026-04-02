@@ -61,7 +61,7 @@ Siehe [docs/runbook.md](docs/runbook.md). CI validiert `export/feed.jsonl` gegen
 # Für Positional-Mode siehe ./scripts/append-feed.sh -h
 ```
 - `source`: Menschlich lesbarer Bezeichner (z. B. `heise`, `dwd`).
-- `type`: Eine der Kategorien `news|sensor|project|alert|link`.
+- `type`: Von `append-feed.sh` akzeptierte Kategorien: `news|sensor|project|alert|link`. Das Schema hält `type` grundsätzlich frei; die Einschränkung ist Script-Policy, kein Contract-Enum.
 - `title`, `summary`, `url`: Inhalte des Ereignisses (`summary` ≤ 2000 Zeichen). `summary` wird bei fehlender Angabe als leerer String geschrieben; `url` ist optional und wird nur gesetzt, wenn übergeben.
 - `tags`: optionale Liste einzelner Tags (z. B. `rss:demo`, `topic:klima`). Das Skript serialisiert sie immer als JSON-Array (`[]`, wenn keine Tags übergeben wurden) und schreibt jede Zeile als kompaktes JSON-Objekt (NDJSON).
 - Das Skript erzwingt Pflichtfelder, validiert Typen und prüft die Summary-Länge mit dem JSON-Schema, bevor der Eintrag in `export/feed.jsonl` angehängt wird.
@@ -94,7 +94,7 @@ falls vorhanden; sonst wird auf `curl` zurückgefallen.
 
   Dies stellt sicher, dass jede Zeile ein einzelnes, kompaktes JSON-Objekt ist (NDJSON-konform).
 
-- Beim Append erzwingt das Skript Pflichtfelder, erlaubte Typen und die Summary-Länge laut Contract. Alle Events enthalten die Contract-Felder `ts`, `type`, `source`, `title`, `summary`, `url` und `tags`.
+- Beim Append erzwingt das Skript Pflichtfelder, erlaubte Typen und die Summary-Länge laut Contract. Contract-required sind `type` und `source`; `ts`, `title`, `summary` und `tags` werden vom Skript ergänzt; `url` wird nur gesetzt, wenn übergeben.
 - GitHub Actions Workflows:
   - `shellcheck` prüft alle Bash-Skripte auf häufige Fehler und Best Practices.
   - `tests` führt die automatisierte Testsuite (bats-core) aus.
@@ -129,7 +129,7 @@ sudo install -m 0755 target/release/aussensensor-push /usr/local/bin/
 Die Push-Skripte verwenden das Binary automatisch, wenn vorhanden (sonst `curl`).
 
 ## Ereignisschema & Datenqualität
-- Pflichtfelder laut Contract: `ts` (ISO-8601), `type` (`news|sensor|project|alert|link`), `source`, `title`. `summary` wird bei fehlender Angabe als leerer String geschrieben; `url` ist optional und wird nur gesetzt, wenn übergeben. `tags[]` wird immer als JSON-Array geschrieben (`[]`, wenn keine Tags übergeben wurden), damit Downstream-Services fixe Spalten haben.
+- Pflichtfelder laut Contract: `type`, `source`. Wenn `type == "link"`, ist zusätzlich `url` erforderlich. `ts`, `title`, `summary` und `tags` werden vom Append-Skript ergänzt und sind für gute Nutzbarkeit empfohlen. `summary` wird bei fehlender Angabe als leerer String geschrieben; `url` wird nur gesetzt, wenn übergeben. `tags[]` wird immer als JSON-Array geschrieben (`[]`, wenn keine Tags übergeben wurden), damit Downstream-Services fixe Spalten haben.
 - **Keine** zusätzlichen Felder erlaubt (`additionalProperties: false`).
 - Tags sind freie Strings (z. B. `rss:demo`, `topic:klima`). Sie werden als JSON-Array geschrieben.
 - Das Append-Skript setzt `ts` automatisch, serialisiert fehlende Tags als leeres Array und schreibt pro Ereignis eine NDJSON-Zeile.
