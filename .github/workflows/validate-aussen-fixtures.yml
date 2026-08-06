@@ -27,7 +27,7 @@ jobs:
     outputs:
       files: ${{ steps.collect.outputs.files }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: collect
         shell: bash
         run: |
