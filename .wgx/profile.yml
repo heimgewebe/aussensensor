@@ -9,9 +9,14 @@ wgx:
 
   tasks:
     up: "echo 'No setup required'"
-    # Guard: Linting und Schema-Validierung
+    # Guard: eigene Node-Abhängigkeiten installieren, Shellsyntax und Schema validieren
     guard: |
-      bash -n $(git ls-files '*.sh' '*.bash')
+      set -euo pipefail
+      npm ci
+      mapfile -t shell_files < <(git ls-files '*.sh' '*.bash')
+      if ((${#shell_files[@]})); then
+        bash -n "${shell_files[@]}"
+      fi
       ./scripts/validate.sh export/feed.jsonl
     # Test: Unit tests via bats
     test: "./tests/run.sh"
