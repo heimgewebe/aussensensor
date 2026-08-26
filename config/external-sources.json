@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "timeout_seconds": 15,
+  "max_response_bytes": 8388608,
+  "allowed_hosts": ["openrouter.ai", "www.githubstatus.com"],
+  "sources": [
+    {
+      "id": "openrouter-model-catalog",
+      "label": "OpenRouter model catalog",
+      "adapter": "json-set",
+      "url": "https://openrouter.ai/api/v1/models",
+      "source": "openrouter:models",
+      "items_path": ["data"],
+      "identity_path": ["id"],
+      "expected_items": ["stealth/ox-alpha"],
+      "report_added": false,
+      "report_removed": true,
+      "report_missing_on_baseline": true,
+      "severity_by_change": {
+        "missing-expected": "high",
+        "removed": "medium",
+        "expected-restored": "low"
+      },
+      "tags": ["operator-evidence", "provider:openrouter", "catalog:model"]
+    },
+    {
+      "id": "github-service-status",
+      "label": "GitHub service status",
+      "adapter": "json-value",
+      "url": "https://www.githubstatus.com/api/v2/summary.json",
+      "source": "github:status",
+      "value_path": ["status", "indicator"],
+      "detail_path": ["status", "description"],
+      "expected_value": "none",
+      "report_missing_on_baseline": true,
+      "severity": "high",
+      "tags": ["operator-evidence", "provider:github", "service-status"]
+    }
+  ]
+}

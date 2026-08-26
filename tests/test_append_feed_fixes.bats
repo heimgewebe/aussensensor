@@ -5,11 +5,11 @@ setup() {
     load 'bats-assert/load'
 
     # Create a dedicated temporary directory for this test file
-    TEST_TMPDIR="$(mktemp -d -t bats-fixes-XXXXXX)"
 
     # Pfad zum Skript
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+    TEST_TMPDIR="$(mktemp -d "$REPO_ROOT/.test-bats-fixes.XXXXXX")"
     APPEND_FEED="$REPO_ROOT/scripts/append-feed.sh"
 
     # Temporäre Ausgabedatei

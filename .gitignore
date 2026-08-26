@@ -1,5 +1,7 @@
 node_modules/
 .DS_Store
+__pycache__/
+*.pyc
 
 # Bats test libraries (installed by CI, not submodules)
 tests/bats/
@@ -9,5 +11,9 @@ tests/bats-assert/
 # Generated data
 export/*
 !export/feed.jsonl
+.state/
+.aussen_event.schema.*.json
+.test-bats-fixes.*
+.test-validate-ref.*
 metrics.json
 tools/aussensensor-push/target

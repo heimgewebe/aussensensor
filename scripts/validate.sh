@@ -8,11 +8,13 @@ SCHEMA_PATH="$REPO_ROOT/contracts/aussen.event.schema.json"
 REQUIRE_NONEMPTY="${REQUIRE_NONEMPTY:-0}"
 SCHEMA_FILE="${SCHEMA_FILE:-$SCHEMA_PATH}"
 
-TMP_SCHEMA_FILE="$(mktemp "${TMPDIR:-/tmp}/aussen_event.schema.XXXXXX.json")"
+TMP_SCHEMA_FILE=""
 TMP_STDIN=""
 
 cleanup() {
-  rm -f "$TMP_SCHEMA_FILE"
+  if [[ -n "${TMP_SCHEMA_FILE:-}" ]]; then
+    rm -f "$TMP_SCHEMA_FILE"
+  fi
   if [[ -n "${TMP_STDIN:-}" ]]; then
     rm -f "$TMP_STDIN"
   fi
@@ -61,7 +63,6 @@ USAGE
 }
 
 check_deps
-need sed
 
 # --- Args --------------------------------------------------------------------
 
@@ -95,20 +96,19 @@ if [[ ! -f "$SCHEMA_FILE" ]]; then
   echo "Schema nicht gefunden: $SCHEMA_FILE" >&2
   exit 1
 fi
+SCHEMA_DIR="${SCHEMA_FILE%/*}"
+if [[ "$SCHEMA_DIR" == "$SCHEMA_FILE" ]]; then
+  SCHEMA_DIR="."
+fi
+
+TMP_SCHEMA_FILE="$(mktemp "$REPO_ROOT/.aussen_event.schema.XXXXXX.json")"
+cat "$SCHEMA_FILE" > "$TMP_SCHEMA_FILE"
 
 declare -a FILES_TO_CHECK=()
 while [[ $# -gt 0 ]]; do
   FILES_TO_CHECK+=("$1")
   shift
 done
-
-# --- Schema patching ----------------------------------------------------------
-# ajv-cli@5 hat begrenzte 2020-12 Unterstützung. Das deklarierte 2020-12-Metaschema
-# wird on-the-fly auf das von ajv-cli@5 erwartete Draft-07-HTTP-Metaschema umgebogen.
-sed \
-  -e 's|https://json-schema.org/draft/2020-12/schema|http://json-schema.org/draft-07/schema#|g' \
-  "$SCHEMA_FILE" > "$TMP_SCHEMA_FILE"
-
 
 # --- Validation ---------------------------------------------------------------
 
@@ -126,7 +126,7 @@ validate_file() {
   # (looking in SCRIPT_DIR/node_modules, then SCRIPT_DIR/../node_modules).
 
   # Pass original schema directory as second argument to support relative $refs resolution
-  node "$SCRIPT_DIR/validate_stream.js" "$TMP_SCHEMA_FILE" "$(dirname "$SCHEMA_FILE")" < "$input_file"
+  node "$SCRIPT_DIR/validate_stream.js" "$TMP_SCHEMA_FILE" "$SCHEMA_DIR" < "$input_file"
   local ret=$?
 
   if [[ $ret -eq 0 ]]; then

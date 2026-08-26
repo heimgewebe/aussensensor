@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
-const Ajv = require('ajv');
+const AjvDraft7 = require('ajv');
+const Ajv2020 = require('ajv/dist/2020');
 const addFormats = require('ajv-formats');
 
 function getErrorMessage(e) {
@@ -85,7 +86,8 @@ async function loadSchema(uri) {
 }
 
 // Initialize Ajv with loose strict mode to match existing behavior
-const ajv = new Ajv({
+const AjvConstructor = String(schema.$schema || '').includes('2020-12') ? Ajv2020 : AjvDraft7;
+const ajv = new AjvConstructor({
   strict: false,
   allErrors: true,
   loadSchema: loadSchema

@@ -5,10 +5,11 @@ load 'bats-assert/load.bash'
 
 SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/scripts"
 VALIDATE_SCRIPT="$SCRIPT_DIR/validate.sh"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 FIXTURES_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/fixtures/ref-resolution" && pwd)"
 
 setup() {
-  TEST_TMPDIR="$(mktemp -d)"
+  TEST_TMPDIR="$(mktemp -d "$REPO_ROOT/.test-validate-ref.XXXXXX")"
 }
 
 teardown() {

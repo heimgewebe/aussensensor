@@ -15,5 +15,11 @@ if ! command -v bats >/dev/null 2>&1; then
   exit 1
 fi
 
-# Run the tests
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "Error: python3 executable not found in PATH." >&2
+  exit 1
+fi
+
+# Run shell/integration tests first, then the stdlib-only external collector tests.
 bats "$TESTS_DIR"/*.bats
+python3 -m unittest discover -s "$TESTS_DIR" -p 'test_*.py'
