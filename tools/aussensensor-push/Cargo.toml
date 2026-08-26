@@ -9,3 +9,4 @@ license = "MIT OR Apache-2.0"
 clap = { version = "4", features = ["derive", "env"] }
 reqwest = { version = "0.13", default-features = true, features = ["blocking", "json"] }
 anyhow = "1"
+serde_json = "1"
