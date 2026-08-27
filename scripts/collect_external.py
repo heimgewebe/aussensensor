@@ -31,6 +31,7 @@ from typing import Any, Iterable
 
 STATE_SCHEMA_VERSION = 1
 CONFIG_SCHEMA_VERSION = 1
+SET_IDENTITY_ENCODING = "canonical-json-scalar-v1"
 DEFAULT_MAX_BYTES = 8 * 1024 * 1024
 DEFAULT_TIMEOUT_SECONDS = 15.0
 USER_AGENT = "heimgewebe-aussensensor/1"
@@ -132,6 +133,7 @@ def observation_scope_sha256(source_cfg: dict[str, Any]) -> str:
             "url": source_cfg["url"],
             "items_path": source_cfg["items_path"],
             "identity_path": source_cfg["identity_path"],
+            "identity_encoding": SET_IDENTITY_ENCODING,
         }
     elif adapter == "json-value":
         scope = {
@@ -328,17 +330,34 @@ def fetch_json(
     return Observation(payload=payload, evidence_sha256=hashlib.sha256(raw).hexdigest(), byte_count=len(raw))
 
 
-def _identity_set(source_cfg: dict[str, Any], payload: Any) -> list[str]:
+def _identity_token(source_cfg: dict[str, Any], identity: Any, *, label: str) -> str:
+    if not isinstance(identity, (str, int, float)) or isinstance(identity, bool):
+        raise CollectorError(f"{source_cfg['id']}: {label} ist kein skalarer JSON-Wert")
+    return canonical_json(identity)
+
+
+def _identity_index(source_cfg: dict[str, Any], payload: Any) -> dict[str, Any]:
     items = resolve_path(payload, source_cfg["items_path"])
     if not isinstance(items, list):
         raise CollectorError(f"{source_cfg['id']}: items_path liefert keine Liste")
-    identities: set[str] = set()
+    identities: dict[str, Any] = {}
     for item in items:
         identity = resolve_path(item, source_cfg["identity_path"])
-        if not isinstance(identity, (str, int, float)) or isinstance(identity, bool):
-            raise CollectorError(f"{source_cfg['id']}: Identität ist kein skalarer Wert")
-        identities.add(str(identity))
-    return sorted(identities)
+        token = _identity_token(source_cfg, identity, label="Identität")
+        identities[token] = identity
+    return identities
+
+
+def _identity_value_index(
+    source_cfg: dict[str, Any], values: Any, *, label: str
+) -> dict[str, Any]:
+    if not isinstance(values, list):
+        raise CollectorError(f"{source_cfg['id']}: {label} muss eine Liste sein")
+    indexed: dict[str, Any] = {}
+    for value in values:
+        token = _identity_token(source_cfg, value, label=label)
+        indexed[token] = value
+    return indexed
 
 
 def compare_json_set(
@@ -347,77 +366,104 @@ def compare_json_set(
     previous: dict[str, Any] | None,
     observed_at: str,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    current_items = _identity_set(source_cfg, observation.payload)
+    current_items = _identity_index(source_cfg, observation.payload)
     current_set = set(current_items)
-    previous_items = set(previous.get("items", [])) if previous else set()
-    previous_missing = set(previous.get("missing_expected", [])) if previous else set()
-    expected = {str(value) for value in source_cfg.get("expected_items", [])}
+    previous_items = (
+        _identity_value_index(source_cfg, previous.get("items", []), label="State items")
+        if previous
+        else {}
+    )
+    previous_set = set(previous_items)
+    previous_missing_items = (
+        _identity_value_index(
+            source_cfg, previous.get("missing_expected", []), label="State missing_expected"
+        )
+        if previous
+        else {}
+    )
+    previous_missing = set(previous_missing_items)
+    expected_items = _identity_value_index(
+        source_cfg, source_cfg.get("expected_items", []), label="expected_items"
+    )
+    expected = set(expected_items)
     current_missing = expected - current_set
     previous_observed_at = previous.get("observed_at") if previous else None
     events: list[dict[str, Any]] = []
     if previous:
         if source_cfg.get("report_added", False):
-            for identity in sorted(current_set - previous_items):
-                if identity in expected:
+            for token in sorted(current_set - previous_set):
+                if token in expected:
                     continue
+                identity = current_items[token]
                 events.append(
                     make_event(
                         source_cfg=source_cfg,
                         change="added",
-                        identity=identity,
+                        identity=token,
                         summary=f"{identity!r} ist neu in {source_cfg['source']} sichtbar.",
                         observed_at=observed_at,
                         evidence_sha256=observation.evidence_sha256,
                         previous_observed_at=previous_observed_at,
-                        fingerprint=episode_fingerprint(previous_observed_at, identity, "absent", "present"),
+                        fingerprint=episode_fingerprint(
+                            previous_observed_at, token, "absent", "present"
+                        ),
                     )
                 )
         if source_cfg.get("report_removed", True):
-            for identity in sorted(previous_items - current_set):
-                if identity in expected:
+            for token in sorted(previous_set - current_set):
+                if token in expected:
                     continue
+                identity = previous_items[token]
                 events.append(
                     make_event(
                         source_cfg=source_cfg,
                         change="removed",
-                        identity=identity,
+                        identity=token,
                         summary=f"{identity!r} ist aus {source_cfg['source']} verschwunden.",
                         observed_at=observed_at,
                         evidence_sha256=observation.evidence_sha256,
                         previous_observed_at=previous_observed_at,
-                        fingerprint=episode_fingerprint(previous_observed_at, identity, "present", "absent"),
+                        fingerprint=episode_fingerprint(
+                            previous_observed_at, token, "present", "absent"
+                        ),
                     )
                 )
 
     newly_missing = current_missing - previous_missing if previous else current_missing
     if previous or source_cfg.get("report_missing_on_baseline", True):
-        for identity in sorted(newly_missing):
+        for token in sorted(newly_missing):
+            identity = expected_items[token]
             events.append(
                 make_event(
                     source_cfg=source_cfg,
                     change="missing-expected",
-                    identity=identity,
+                    identity=token,
                     summary=f"Erwarteter Wert {identity!r} fehlt in {source_cfg['source']}.",
                     observed_at=observed_at,
                     evidence_sha256=observation.evidence_sha256,
                     previous_observed_at=previous_observed_at,
-                    fingerprint=episode_fingerprint(previous_observed_at, identity, "expected", "missing"),
+                    fingerprint=episode_fingerprint(
+                        previous_observed_at, token, "expected", "missing"
+                    ),
                 )
             )
 
     if previous:
         restored_expected = (previous_missing - current_missing) & expected & current_set
-        for identity in sorted(restored_expected):
+        for token in sorted(restored_expected):
+            identity = current_items[token]
             events.append(
                 make_event(
                     source_cfg=source_cfg,
                     change="expected-restored",
-                    identity=identity,
+                    identity=token,
                     summary=f"Erwarteter Wert {identity!r} ist in {source_cfg['source']} wieder vorhanden.",
                     observed_at=observed_at,
                     evidence_sha256=observation.evidence_sha256,
                     previous_observed_at=previous_observed_at,
-                    fingerprint=episode_fingerprint(previous_observed_at, identity, "missing", "expected"),
+                    fingerprint=episode_fingerprint(
+                        previous_observed_at, token, "missing", "expected"
+                    ),
                 )
             )
 
@@ -426,8 +472,8 @@ def compare_json_set(
         "observed_at": observed_at,
         "evidence_sha256": observation.evidence_sha256,
         "item_count": len(current_items),
-        "items": current_items,
-        "missing_expected": sorted(current_missing),
+        "items": [current_items[token] for token in sorted(current_set)],
+        "missing_expected": [expected_items[token] for token in sorted(current_missing)],
     }
     return events, state
 

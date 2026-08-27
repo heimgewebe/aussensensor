@@ -159,6 +159,45 @@ class CollectExternalTests(unittest.TestCase):
         with self.assertRaises(collect_external.CollectorError):
             collect_external.resolve_path(value, ["missing"])
 
+    def test_json_set_expected_items_preserve_json_types(self) -> None:
+        cfg = dict(self.set_cfg)
+        cfg["expected_items"] = ["1"]
+        events, state = collect_external.compare_json_set(
+            cfg,
+            self.observation({"data": [{"id": 1}]}),
+            None,
+            "2026-08-27T17:40:00Z",
+        )
+        self.assertEqual(
+            [event["features"]["change_kind"] for event in events],
+            ["missing-expected"],
+        )
+        self.assertEqual(state["items"], [1])
+        self.assertEqual(state["missing_expected"], ["1"])
+
+    def test_json_set_transition_preserves_json_identity_types(self) -> None:
+        cfg = dict(self.set_cfg)
+        cfg["expected_items"] = []
+        cfg["report_added"] = True
+        _, baseline_state = collect_external.compare_json_set(
+            cfg,
+            self.observation({"data": [{"id": 1}]}),
+            None,
+            "2026-08-27T17:41:00Z",
+        )
+        events, state = collect_external.compare_json_set(
+            cfg,
+            self.observation({"data": [{"id": "1"}]}),
+            baseline_state,
+            "2026-08-27T17:42:00Z",
+        )
+        self.assertEqual(
+            [event["features"]["change_kind"] for event in events],
+            ["added", "removed"],
+        )
+        self.assertEqual(state["items"], ["1"])
+        self.assertNotEqual(events[0]["id"], events[1]["id"])
+
     def test_json_set_baseline_reports_missing_expected_once(self) -> None:
         first_events, first_state = collect_external.compare_json_set(
             self.set_cfg,
