@@ -33,7 +33,7 @@ Die Standardkonfiguration `config/external-sources.json` beobachtet derzeit:
 
 `expected_items` und `expected_value` sind ausdrücklich **lokale Operator-Annahmen**, keine Wahrheit über den Anbieter. Wenn eine Abhängigkeit absichtlich aufgegeben wird, muss die Erwartung aus der Konfiguration entfernt werden.
 
-Wird bei derselben Source-ID der Adapter gewechselt (`json-set` ↔ `json-value`), wird der alte adapterspezifische Vergleichs-State nicht umgedeutet. Die nächste Beobachtung bildet für den neuen Adapter eine frische Baseline; echte Abweichungen von weiterhin konfigurierten Erwartungen dürfen dabei weiterhin als Baseline-Befund erscheinen.
+Ändert sich bei derselben Source-ID der Beobachtungsraum – also Adapter, URL oder ein wertbestimmender Selektor (`value_path`, `items_path`, `identity_path`) –, wird der alte Vergleichs-State nicht auf die neue Bedeutung umgedeutet. Die nächste Beobachtung bildet dafür eine frische Baseline; echte Abweichungen von weiterhin konfigurierten Erwartungen dürfen dabei weiterhin als Baseline-Befund erscheinen. Änderungen an Erwartungen, Reporting-Schaltern oder reinen Detailfeldern wechseln den Beobachtungsraum dagegen nicht.
 
 ## Sicherheitsgrenzen
 

@@ -41,69 +41,117 @@ class CollectExternalTests(unittest.TestCase):
             byte_count=len(raw),
         )
 
+    def collect_from_scoped_state(self, previous_cfg, source_cfg, previous_state, payload):
+        previous_state = dict(previous_state)
+        previous_state["observation_scope_sha256"] = (
+            collect_external.observation_scope_sha256(previous_cfg)
+        )
+        config = {"allowed_hosts": ["example.com"], "sources": [source_cfg]}
+        state = {
+            "schema_version": collect_external.STATE_SCHEMA_VERSION,
+            "sources": {"source": previous_state},
+        }
+        with patch.object(collect_external, "fetch_json", return_value=self.observation(payload)):
+            return collect_external.collect(config, state, "2026-08-27T15:12:00Z")
+
     def test_collect_resets_previous_state_when_adapter_changes(self) -> None:
+        value_cfg = {
+            "id": "source", "label": "Source", "adapter": "json-value",
+            "url": "https://example.com/data", "source": "example:source",
+            "value_path": ["value"], "tags": [],
+        }
+        set_cfg = {
+            "id": "source", "label": "Source", "adapter": "json-set",
+            "url": "https://example.com/data", "source": "example:source",
+            "items_path": ["items"], "identity_path": ["id"],
+            "report_added": True, "report_removed": True, "tags": [],
+        }
+        value_state = {
+            "adapter": "json-value", "observed_at": "2026-08-27T14:00:00Z",
+            "value": "old", "fingerprint": "stale", "unexpected": False,
+        }
+        set_state = {
+            "adapter": "json-set", "observed_at": "2026-08-27T14:00:00Z",
+            "items": ["old"], "missing_expected": [],
+        }
         cases = [
-            (
-                {
-                    "id": "source",
-                    "label": "Source",
-                    "adapter": "json-set",
-                    "url": "https://example.com/data",
-                    "source": "example:source",
-                    "items_path": ["data"],
-                    "identity_path": ["id"],
-                    "report_added": True,
-                    "report_removed": True,
-                    "tags": [],
-                },
-                {
-                    "adapter": "json-value",
-                    "observed_at": "2026-08-27T14:00:00Z",
-                    "value": "old",
-                    "fingerprint": "old-fingerprint",
-                    "unexpected": False,
-                },
-                {"data": [{"id": "a"}, {"id": "b"}]},
-                "json-set",
-            ),
-            (
-                {
-                    "id": "source",
-                    "label": "Source",
-                    "adapter": "json-value",
-                    "url": "https://example.com/data",
-                    "source": "example:source",
-                    "value_path": ["value"],
-                    "tags": [],
-                },
-                {
-                    "adapter": "json-set",
-                    "observed_at": "2026-08-27T14:00:00Z",
-                    "items": ["old"],
-                    "missing_expected": [],
-                },
-                {"value": "current"},
-                "json-value",
-            ),
+            (value_cfg, set_cfg, value_state, {"items": [{"id": "new"}]}),
+            (set_cfg, value_cfg, set_state, {"value": "current"}),
         ]
-        for source_cfg, previous_state, payload, expected_adapter in cases:
-            with self.subTest(adapter=expected_adapter):
-                config = {
-                    "allowed_hosts": ["example.com"],
-                    "sources": [source_cfg],
-                }
-                state = {
-                    "schema_version": collect_external.STATE_SCHEMA_VERSION,
-                    "sources": {"source": previous_state},
-                }
-                with patch.object(
-                    collect_external, "fetch_json", return_value=self.observation(payload)
-                ):
-                    events, next_state = collect_external.collect(
-                        config, state, "2026-08-27T15:05:00Z"
-                    )
+        for previous_cfg, source_cfg, previous_state, payload in cases:
+            with self.subTest(adapter=source_cfg["adapter"]):
+                events, next_state = self.collect_from_scoped_state(
+                    previous_cfg, source_cfg, previous_state, payload
+                )
                 self.assertEqual(events, [])
-                self.assertEqual(next_state["sources"]["source"]["adapter"], expected_adapter)
+                self.assertEqual(
+                    next_state["sources"]["source"]["observation_scope_sha256"],
+                    collect_external.observation_scope_sha256(source_cfg),
+                )
+
+    def test_collect_resets_previous_state_when_observation_scope_changes(self) -> None:
+        value_cfg = {
+            "id": "source", "label": "Source", "adapter": "json-value",
+            "url": "https://example.com/data", "source": "example:source",
+            "value_path": ["value"], "tags": [],
+        }
+        set_cfg = {
+            "id": "source", "label": "Source", "adapter": "json-set",
+            "url": "https://example.com/data", "source": "example:source",
+            "items_path": ["items"], "identity_path": ["id"],
+            "report_added": True, "report_removed": True, "tags": [],
+        }
+        value_state = {
+            "adapter": "json-value", "observed_at": "2026-08-27T14:00:00Z",
+            "value": "old", "fingerprint": "stale", "unexpected": False,
+        }
+        set_state = {
+            "adapter": "json-set", "observed_at": "2026-08-27T14:00:00Z",
+            "items": ["old"], "missing_expected": [],
+        }
+        cases = [
+            (value_cfg, {**value_cfg, "value_path": ["other"]}, value_state, {"other": "current"}, "value_path"),
+            (set_cfg, {**set_cfg, "items_path": ["other_items"]}, set_state, {"other_items": [{"id": "new"}]}, "items_path"),
+            (set_cfg, {**set_cfg, "identity_path": ["name"]}, set_state, {"items": [{"id": "old", "name": "new"}]}, "identity_path"),
+            (value_cfg, {**value_cfg, "url": "https://example.com/other"}, value_state, {"value": "current"}, "url"),
+        ]
+        for previous_cfg, source_cfg, previous_state, payload, field in cases:
+            with self.subTest(field=field):
+                events, next_state = self.collect_from_scoped_state(
+                    previous_cfg, source_cfg, previous_state, payload
+                )
+                self.assertEqual(events, [])
+                self.assertEqual(
+                    next_state["sources"]["source"]["observation_scope_sha256"],
+                    collect_external.observation_scope_sha256(source_cfg),
+                )
+
+    def test_observation_scope_ignores_expectation_and_reporting_edits(self) -> None:
+        value_cfg = {
+            "adapter": "json-value", "url": "https://example.com/data",
+            "value_path": ["value"], "expected_value": "ok",
+            "detail_path": ["detail"], "report_missing_on_baseline": True,
+        }
+        edited_value = {
+            **value_cfg, "expected_value": "other", "detail_path": ["message"],
+            "report_missing_on_baseline": False,
+        }
+        set_cfg = {
+            "adapter": "json-set", "url": "https://example.com/data",
+            "items_path": ["items"], "identity_path": ["id"],
+            "expected_items": ["required"], "report_added": False, "report_removed": True,
+        }
+        edited_set = {
+            **set_cfg, "expected_items": ["other"], "report_added": True, "report_removed": False,
+        }
+        self.assertEqual(
+            collect_external.observation_scope_sha256(value_cfg),
+            collect_external.observation_scope_sha256(edited_value),
+        )
+        self.assertEqual(
+            collect_external.observation_scope_sha256(set_cfg),
+            collect_external.observation_scope_sha256(edited_set),
+        )
 
     def test_resolve_path(self) -> None:
         value = {"a": [{"b": "ok"}]}

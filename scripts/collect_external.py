@@ -111,6 +111,27 @@ def sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def observation_scope_sha256(source_cfg: dict[str, Any]) -> str:
+    """Bind comparison state to the upstream and selectors that define its value."""
+    adapter = source_cfg["adapter"]
+    if adapter == "json-set":
+        scope = {
+            "adapter": adapter,
+            "url": source_cfg["url"],
+            "items_path": source_cfg["items_path"],
+            "identity_path": source_cfg["identity_path"],
+        }
+    elif adapter == "json-value":
+        scope = {
+            "adapter": adapter,
+            "url": source_cfg["url"],
+            "value_path": source_cfg["value_path"],
+        }
+    else:
+        raise CollectorError(f"Unbekannter Adapter: {adapter}")
+    return sha256_text(canonical_json(scope))
+
+
 def resolve_path(value: Any, path: Iterable[Any]) -> Any:
     current = value
     for segment in path:
@@ -591,14 +612,16 @@ def collect(config: dict[str, Any], state: dict[str, Any], observed_at: str) -> 
     all_events: list[dict[str, Any]] = []
     for source_cfg in enabled_sources:
         source_id = source_cfg["id"]
+        scope_sha256 = observation_scope_sha256(source_cfg)
         previous = state["sources"].get(source_id)
-        if previous is not None and previous.get("adapter") != source_cfg["adapter"]:
+        if previous is not None and previous.get("observation_scope_sha256") != scope_sha256:
             previous = None
         observation = observations[source_id]
         if source_cfg["adapter"] == "json-set":
             events, source_state = compare_json_set(source_cfg, observation, previous, observed_at)
         else:
             events, source_state = compare_json_value(source_cfg, observation, previous, observed_at)
+        source_state["observation_scope_sha256"] = scope_sha256
         all_events.extend(events)
         next_state["sources"][source_id] = source_state
     return all_events, next_state
