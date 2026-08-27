@@ -36,3 +36,35 @@ teardown() {
   [[ "$output" == *"another collection run owns the state lock"* ]]
   [ ! -e "$state_file" ]
 }
+
+@test "collect-and-push dry-run with no events never advances state" {
+  local state_file="$TEST_TMPDIR/state.json"
+  local before_file="$TEST_TMPDIR/state.before.json"
+  local fake_python="$TEST_TMPDIR/fake-python"
+  printf '%s\n' '{"schema_version":1,"sources":{"old":{"value":"keep"}}}' > "$state_file"
+  cp "$state_file" "$before_file"
+
+  cat > "$fake_python" <<'EOF'
+#!/usr/bin/env bash
+shift
+next_state=""
+output=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --next-state) next_state="$2"; shift 2 ;;
+    --output) output="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+printf '%s\n' '{"schema_version":1,"sources":{"new":{"value":"candidate"}}}' > "$next_state"
+: > "$output"
+EOF
+  chmod +x "$fake_python"
+
+  run env PYTHON_BIN="$fake_python" AUSSENSENSOR_DRY_RUN=1 AUSSENSENSOR_EXTERNAL_STATE="$state_file" "$SCRIPT"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no relevant external change"* ]]
+  [[ "$output" == *"dry-run; comparison state was not advanced"* ]]
+  cmp "$before_file" "$state_file"
+}

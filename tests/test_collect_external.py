@@ -65,6 +65,26 @@ class CollectExternalTests(unittest.TestCase):
         )
         self.assertEqual(second_events, [])
 
+    def test_removing_expectation_does_not_emit_false_restoration(self) -> None:
+        missing_events, missing_state = collect_external.compare_json_set(
+            self.set_cfg,
+            self.observation({"data": [{"id": "other/model"}]}),
+            None,
+            "2026-08-27T05:00:00Z",
+        )
+        self.assertEqual([event["features"]["change_kind"] for event in missing_events], ["missing-expected"])
+
+        no_longer_expected = dict(self.set_cfg)
+        no_longer_expected["expected_items"] = []
+        events, state = collect_external.compare_json_set(
+            no_longer_expected,
+            self.observation({"data": [{"id": "other/model"}]}),
+            missing_state,
+            "2026-08-27T05:10:00Z",
+        )
+        self.assertEqual(events, [])
+        self.assertEqual(state["missing_expected"], [])
+
     def test_json_set_event_ids_are_retry_stable_but_episode_unique(self) -> None:
         baseline_events, baseline_state = collect_external.compare_json_set(
             self.set_cfg,

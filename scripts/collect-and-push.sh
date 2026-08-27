@@ -45,12 +45,16 @@ if [[ -s "$EVENT_FILE" ]]; then
   "$SCRIPT_DIR/validate.sh" "$EVENT_FILE"
   if [[ "$DRY_RUN" == "1" ]]; then
     "$SCRIPT_DIR/push_chronik.sh" -f "$EVENT_FILE" --dry-run
-    echo "aussensensor: dry-run; comparison state was not advanced"
-    exit 0
+  else
+    "$SCRIPT_DIR/push_chronik.sh" -f "$EVENT_FILE"
   fi
-  "$SCRIPT_DIR/push_chronik.sh" -f "$EVENT_FILE"
 else
   echo "aussensensor: no relevant external change"
+fi
+
+if [[ "$DRY_RUN" == "1" ]]; then
+  echo "aussensensor: dry-run; comparison state was not advanced"
+  exit 0
 fi
 
 mv -f "$NEXT_STATE" "$STATE_FILE"

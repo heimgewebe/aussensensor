@@ -306,7 +306,8 @@ def compare_json_set(
             )
 
     if previous:
-        for identity in sorted(previous_missing - current_missing):
+        restored_expected = (previous_missing - current_missing) & expected & current_set
+        for identity in sorted(restored_expected):
             events.append(
                 make_event(
                     source_cfg=source_cfg,
