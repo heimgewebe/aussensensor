@@ -163,9 +163,11 @@ else
     exit 1
   }
 
-  # HTTP-Fehlercodes explizit behandeln
-  if [[ "$http_code" -ge 400 ]]; then
-    echo "Fehler: Server meldet HTTP $http_code für '$INGEST_URL'." >&2
+  # Nur ein echter 2xx-Ingest darf als Zustellung gelten. Redirects werden
+  # absichtlich nicht als Erfolg gewertet, damit transaktionale Aufrufer ihren
+  # Vergleichs-State nicht konsumieren, ohne dass Chronik bestätigt hat.
+  if [[ "$http_code" -lt 200 || "$http_code" -ge 300 ]]; then
+    echo "Fehler: Server meldet nicht-erfolgreichen HTTP-Status $http_code für '$INGEST_URL'." >&2
     echo "--- Antwort des Servers ---" >&2
     sed 's/^/  /' "$tmp_body" >&2 || true
     echo "---------------------------" >&2

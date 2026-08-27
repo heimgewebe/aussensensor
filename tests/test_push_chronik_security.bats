@@ -1,10 +1,14 @@
 #!/usr/bin/env bats
 
 setup() {
-  export REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
-  export SCRIPT="$REPO_ROOT/scripts/push_chronik.sh"
-  export TEST_TMPDIR="$(mktemp -d)"
-  export DUMMY_FILE="$TEST_TMPDIR/test.jsonl"
+  REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+  export REPO_ROOT
+  SCRIPT="$REPO_ROOT/scripts/push_chronik.sh"
+  export SCRIPT
+  TEST_TMPDIR="$(mktemp -d)"
+  export TEST_TMPDIR
+  DUMMY_FILE="$TEST_TMPDIR/test.jsonl"
+  export DUMMY_FILE
   echo '{"test":"data"}' > "$DUMMY_FILE"
 }
 
@@ -60,4 +64,18 @@ teardown() {
 @test "push_chronik.sh accepts CURL_MAX_TIME env var (dry-run)" {
   run env CURL_MAX_TIME=30 "$SCRIPT" --url "http://localhost/ingest" --file "$DUMMY_FILE" --dry-run
   [ "$status" -eq 0 ]
+}
+
+@test "push_chronik.sh rejects redirect status as unsuccessful delivery" {
+  local fake_bin="$TEST_TMPDIR/fake-bin"
+  mkdir -p "$fake_bin"
+  cat > "$fake_bin/curl" <<'EOF'
+#!/usr/bin/env bash
+printf '302'
+EOF
+  chmod +x "$fake_bin/curl"
+
+  run env PATH="$fake_bin:$PATH" "$SCRIPT" --url "https://chronik.example/ingest" --file "$DUMMY_FILE"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"nicht-erfolgreichen HTTP-Status 302"* ]]
 }

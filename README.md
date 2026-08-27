@@ -3,7 +3,7 @@
 [![validate (aussensensor feed)](https://github.com/heimgewebe/aussensensor/actions/workflows/validate-feed.yml/badge.svg)](https://github.com/heimgewebe/aussensensor/actions/workflows/validate-feed.yml)
 [![validate (aussen fixtures)](https://github.com/heimgewebe/aussensensor/actions/workflows/validate-aussen-fixtures.yml/badge.svg)](https://github.com/heimgewebe/aussensensor/actions/workflows/validate-aussen-fixtures.yml)
 
-aussensensor kuratiert externe Informationsquellen (Newsfeeds, Wetter, Lagebilder) und stellt sie in einem konsistenten Ereignisformat für die Chronik zur Verfügung. Die aktuelle Implementierung besteht aus einfachen Bash-Hilfsskripten, die den Feed in `export/feed.jsonl` pflegen und manuell an die Chronik übertragen. Langfristig ist eine Migration zu einem dauerhaften Daemon geplant (siehe [docs/adr](docs/adr/README.md)).
+aussensensor ist die kontrollierte Wahrnehmungsgrenze für externe, veränderliche Tatsachen. Neben dem manuellen Feed kann der V1-Collector explizit freigegebene HTTPS-JSON-Quellen beobachten, relevante Zustandsänderungen als `aussen.event` normalisieren und sie quell- und hashgebunden für Chronik bereitstellen. Er crawlt nicht frei im Web und besitzt weder Task- noch Policy-Autorität; Details siehe [External Evidence Collector](docs/external-evidence.md).
 
 ## Systemkontext und Zielsetzung
 - **Zielgruppe:** Operatoren und Analysten, die ein konsolidiertes Lagebild benötigen.
@@ -14,11 +14,28 @@ aussensensor kuratiert externe Informationsquellen (Newsfeeds, Wetter, Lagebilde
 
   > Hinweis: Der direkte Heimlern-Pfad ist deprecated. Bevorzugter Pfad: **chronik**.
 Architekturentscheidungen, die zu diesem Design führten, sind in den [ADRs](docs/adr/README.md) dokumentiert.
+## Externe Evidenz statt Blindflug
+
+Der neue V1-Pfad beobachtet nur explizit konfigurierte, operator-relevante Quellen. Standardmäßig werden der OpenRouter-Modellkatalog und der GitHub-Dienststatus geprüft. Ein Befund wird mit stabiler Event-ID, Beobachtungszeit, Quell-URL und SHA-256 der gelesenen Antwort versehen.
+
+```bash
+# nur beobachten und NDJSON schreiben
+python3 scripts/collect_external.py --output export/external-evidence.jsonl
+
+# produktiver Pfad: collect -> validate -> Chronik -> State commit
+scripts/collect-and-push.sh
+```
+
+Der transaktionale Wrapper schreibt den Vergleichs-State erst nach erfolgreichem Delivery-Pfad fort. Bei `AUSSENSENSOR_DRY_RUN=1` wird nichts konsumiert. Quellenaufnahme, Sicherheitsgrenzen und weitere sinnvolle Sensorfamilien stehen in [docs/external-evidence.md](docs/external-evidence.md).
+
 
 ## Komponentenüberblick
 | Komponente | Beschreibung |
 | --- | --- |
 | `scripts/append-feed.sh` | Fügt dem Feed ein neues Ereignis im JSONL-Format hinzu und erzwingt Contract-Konformität. |
+| `scripts/collect_external.py` | Beobachtet allowlist-gebundene HTTPS-JSON-Quellen und erzeugt nur relevante `aussen.event`-Änderungen. |
+| `scripts/collect-and-push.sh` | Transaktionaler Pfad: beobachten, validieren, an Chronik senden, erst dann Vergleichs-State fortschreiben. |
+| `config/external-sources.json` | Explizite Quellen, Erwartungen, Pfade und Alarmsemantik des External-Evidence-V1. |
 | `scripts/validate.sh` | Validiert eine JSONL-Datei gegen das Schema. |
 | `scripts/jsonl-compact.sh` | Kompaktifiziert JSONL-Dateien, indem jede Zeile als einzelnes JSON-Objekt formatiert wird. |
 | `scripts/push_chronik.sh` | Überträgt den kompletten Feed an die Chronik-Ingest-API oder führt einen Dry-Run aus. |
@@ -31,6 +48,8 @@ Architekturentscheidungen, die zu diesem Design führten, sind in den [ADRs](doc
 
 ## Voraussetzungen
 - POSIX-kompatible Shell (getestet mit `bash`)
+- Python 3.10+ für den External-Evidence-Collector
+- `flock` (typisch aus `util-linux`) für den transaktionalen Collector-State
 - `jq` ≥ 1.6 für JSON-Verarbeitung
 - `curl` für HTTP-Requests
 - `ajv-cli` (Node.js) für Validierung (`npm i -g ajv-cli@5.0.0`)
