@@ -90,8 +90,21 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _reject_nonfinite_json_constant(value: str) -> Any:
+    raise ValueError(f"Nicht-endliche JSON-Zahl ist nicht erlaubt: {value}")
+
+
+def strict_json_loads(value: str) -> Any:
+    return json.loads(value, parse_constant=_reject_nonfinite_json_constant)
+
+
 def canonical_json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    try:
+        return json.dumps(
+            value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+        )
+    except ValueError as exc:
+        raise CollectorError(f"Wert ist nicht strikt JSON-serialisierbar: {exc}") from exc
 
 
 def sha256_text(value: str) -> str:
@@ -276,8 +289,8 @@ def fetch_json(
     if len(raw) > max_bytes:
         raise CollectorError(f"Antwort überschreitet Maximalgröße ({len(raw)} > {max_bytes})")
     try:
-        payload = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        payload = strict_json_loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as exc:
         raise CollectorError(f"Quelle liefert kein gültiges UTF-8-JSON: {url}: {exc}") from exc
     return Observation(payload=payload, evidence_sha256=hashlib.sha256(raw).hexdigest(), byte_count=len(raw))
 
@@ -399,7 +412,7 @@ def compare_json_value(
     events: list[dict[str, Any]] = []
     expected_configured = "expected_value" in source_cfg
     expected_value = source_cfg.get("expected_value")
-    if expected_value is None and previous and previous.get("fingerprint") != fingerprint:
+    if not expected_configured and previous and previous.get("fingerprint") != fingerprint:
         before = previous.get("value")
         events.append(
             make_event(
@@ -463,8 +476,8 @@ def compare_json_value(
 
 def load_config(path: Path) -> dict[str, Any]:
     try:
-        config = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        config = strict_json_loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
         raise CollectorError(f"Konfiguration kann nicht gelesen werden: {path}: {exc}") from exc
     if not isinstance(config, dict) or config.get("schema_version") != CONFIG_SCHEMA_VERSION:
         raise CollectorError(f"Nicht unterstützte config schema_version in {path}")
@@ -499,8 +512,8 @@ def load_state(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {"schema_version": STATE_SCHEMA_VERSION, "sources": {}}
     try:
-        state = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        state = strict_json_loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
         raise CollectorError(f"State kann nicht gelesen werden: {path}: {exc}") from exc
     if not isinstance(state, dict) or state.get("schema_version") != STATE_SCHEMA_VERSION:
         raise CollectorError(f"Nicht unterstützte state schema_version in {path}")

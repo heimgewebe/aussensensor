@@ -281,6 +281,33 @@ class CollectExternalTests(unittest.TestCase):
         )
         self.assertEqual([event["features"]["change_kind"] for event in events], ["unexpected-value"])
 
+    def test_explicit_null_expectation_uses_only_expectation_events(self) -> None:
+        cfg = {
+            "id": "nullable",
+            "label": "Nullable",
+            "adapter": "json-value",
+            "url": "https://example.com/value.json",
+            "source": "example:value",
+            "value_path": ["value"],
+            "expected_value": None,
+            "report_missing_on_baseline": True,
+            "tags": [],
+        }
+        first_events, first_state = collect_external.compare_json_value(
+            cfg, self.observation({"value": "bad-a"}), None, "2026-08-27T06:00:00Z"
+        )
+        self.assertEqual([e["features"]["change_kind"] for e in first_events], ["unexpected-value"])
+
+        changed_events, changed_state = collect_external.compare_json_value(
+            cfg, self.observation({"value": "bad-b"}), first_state, "2026-08-27T06:01:00Z"
+        )
+        self.assertEqual([e["features"]["change_kind"] for e in changed_events], ["unexpected-value"])
+
+        restored_events, _ = collect_external.compare_json_value(
+            cfg, self.observation({"value": None}), changed_state, "2026-08-27T06:02:00Z"
+        )
+        self.assertEqual([e["features"]["change_kind"] for e in restored_events], ["expected-restored"])
+
     def test_generic_json_value_reports_change_without_expected_value(self) -> None:
         cfg = {
             "id": "version",

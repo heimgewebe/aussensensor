@@ -32,6 +32,30 @@ class ExternalUrlSecurityTests(unittest.TestCase):
         with self.assertRaisesRegex(collect_external.CollectorError, "Standardport 443"):
             collect_external.validate_external_url("https://example.com:4443/data", {"example.com"})
 
+    def test_fetch_json_rejects_nonfinite_numeric_constants(self) -> None:
+        class Response:
+            headers = {}
+            def __enter__(self): return self
+            def __exit__(self, exc_type, exc, tb): return False
+            def read(self, _limit): return b'{"value":NaN}'
+
+        class Opener:
+            def open(self, _request, timeout): return Response()
+
+        with (
+            mock.patch.object(collect_external, "_host_is_public", return_value=None),
+            mock.patch.object(collect_external.urllib.request, "build_opener", return_value=Opener()),
+            self.assertRaisesRegex(collect_external.CollectorError, "gültiges UTF-8-JSON"),
+        ):
+            collect_external.fetch_json(
+                "https://example.com/data", allowed_hosts={"example.com"}, timeout_seconds=1, max_bytes=1024
+            )
+
+    def test_strict_json_loads_rejects_all_nonfinite_constants(self) -> None:
+        for token in ("NaN", "Infinity", "-Infinity"):
+            with self.subTest(token=token), self.assertRaisesRegex(ValueError, "Nicht-endliche JSON-Zahl"):
+                collect_external.strict_json_loads('{"value":' + token + '}')
+
     def test_fetch_json_enforces_end_to_end_wall_clock_deadline(self) -> None:
         class SlowResponse:
             headers = {}
