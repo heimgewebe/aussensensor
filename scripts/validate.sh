@@ -8,13 +8,9 @@ SCHEMA_PATH="$REPO_ROOT/contracts/aussen.event.schema.json"
 REQUIRE_NONEMPTY="${REQUIRE_NONEMPTY:-0}"
 SCHEMA_FILE="${SCHEMA_FILE:-$SCHEMA_PATH}"
 
-TMP_SCHEMA_FILE=""
 TMP_STDIN=""
 
 cleanup() {
-  if [[ -n "${TMP_SCHEMA_FILE:-}" ]]; then
-    rm -f "$TMP_SCHEMA_FILE"
-  fi
   if [[ -n "${TMP_STDIN:-}" ]]; then
     rm -f "$TMP_STDIN"
   fi
@@ -101,9 +97,6 @@ if [[ "$SCHEMA_DIR" == "$SCHEMA_FILE" ]]; then
   SCHEMA_DIR="."
 fi
 
-TMP_SCHEMA_FILE="$(mktemp "$REPO_ROOT/.aussen_event.schema.XXXXXX.json")"
-cat "$SCHEMA_FILE" > "$TMP_SCHEMA_FILE"
-
 declare -a FILES_TO_CHECK=()
 while [[ $# -gt 0 ]]; do
   FILES_TO_CHECK+=("$1")
@@ -126,7 +119,7 @@ validate_file() {
   # (looking in SCRIPT_DIR/node_modules, then SCRIPT_DIR/../node_modules).
 
   # Pass original schema directory as second argument to support relative $refs resolution
-  node "$SCRIPT_DIR/validate_stream.js" "$TMP_SCHEMA_FILE" "$SCHEMA_DIR" < "$input_file"
+  node "$SCRIPT_DIR/validate_stream.js" "$SCHEMA_FILE" "$SCHEMA_DIR" < "$input_file"
   local ret=$?
 
   if [[ $ret -eq 0 ]]; then

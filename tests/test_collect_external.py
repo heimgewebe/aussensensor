@@ -85,6 +85,32 @@ class CollectExternalTests(unittest.TestCase):
         self.assertEqual(events, [])
         self.assertEqual(state["missing_expected"], [])
 
+    def test_expected_restore_with_report_added_emits_only_restoration(self) -> None:
+        cfg = dict(self.set_cfg)
+        cfg["report_added"] = True
+        _, baseline_state = collect_external.compare_json_set(
+            cfg,
+            self.observation({"data": [{"id": "must/exist"}, {"id": "other/model"}]}),
+            None,
+            "2026-08-27T14:00:00Z",
+        )
+        _, missing_state = collect_external.compare_json_set(
+            cfg,
+            self.observation({"data": [{"id": "other/model"}]}),
+            baseline_state,
+            "2026-08-27T14:01:00Z",
+        )
+        events, _ = collect_external.compare_json_set(
+            cfg,
+            self.observation({"data": [{"id": "must/exist"}, {"id": "other/model"}]}),
+            missing_state,
+            "2026-08-27T14:02:00Z",
+        )
+        self.assertEqual(
+            [event["features"]["change_kind"] for event in events],
+            ["expected-restored"],
+        )
+
     def test_json_set_event_ids_are_retry_stable_but_episode_unique(self) -> None:
         baseline_events, baseline_state = collect_external.compare_json_set(
             self.set_cfg,
@@ -257,6 +283,35 @@ class CollectExternalTests(unittest.TestCase):
             self.observation({"status": {"indicator": "minor"}}),
             state,
             "2026-08-27T05:10:00Z",
+        )
+        self.assertEqual(events, [])
+        self.assertFalse(next_state["unexpected"])
+
+    def test_expectation_edit_matching_unchanged_value_does_not_emit_recovery(self) -> None:
+        cfg = {
+            "id": "status",
+            "label": "Service status",
+            "adapter": "json-value",
+            "url": "https://status.example.com/api.json",
+            "source": "example:status",
+            "value_path": ["status", "indicator"],
+            "expected_value": "none",
+            "report_missing_on_baseline": True,
+            "tags": [],
+        }
+        _, state = collect_external.compare_json_value(
+            cfg,
+            self.observation({"status": {"indicator": "minor"}}),
+            None,
+            "2026-08-27T14:10:00Z",
+        )
+        changed_expectation = dict(cfg)
+        changed_expectation["expected_value"] = "minor"
+        events, next_state = collect_external.compare_json_value(
+            changed_expectation,
+            self.observation({"status": {"indicator": "minor"}}),
+            state,
+            "2026-08-27T14:11:00Z",
         )
         self.assertEqual(events, [])
         self.assertFalse(next_state["unexpected"])

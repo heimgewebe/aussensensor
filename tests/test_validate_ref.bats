@@ -5,16 +5,8 @@ load 'bats-assert/load.bash'
 
 SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/scripts"
 VALIDATE_SCRIPT="$SCRIPT_DIR/validate.sh"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 FIXTURES_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/fixtures/ref-resolution" && pwd)"
 
-setup() {
-  TEST_TMPDIR="$(mktemp -d "$REPO_ROOT/.test-validate-ref.XXXXXX")"
-}
-
-teardown() {
-  rm -rf "$TEST_TMPDIR"
-}
 
 @test "validate.sh: Resolves relative \$ref in schema" {
   local schema_file="$FIXTURES_DIR/schema-root.json"
@@ -42,8 +34,7 @@ teardown() {
 }
 
 @test "validate.sh: Fails on invalid JSON schema" {
-  local invalid_schema="$TEST_TMPDIR/invalid_schema.json"
-  echo "{ invalid json" > "$invalid_schema"
+  local invalid_schema="$FIXTURES_DIR/schema-invalid.json"
 
   run "$VALIDATE_SCRIPT" -s "$invalid_schema" "$FIXTURES_DIR/data-with-ref.jsonl"
   assert_failure 1

@@ -3,7 +3,8 @@
 load 'bats-support/load.bash'
 load 'bats-assert/load.bash'
 
-SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/scripts"
+REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+SCRIPT_DIR="$REPO_ROOT/scripts"
 VALIDATE_SCRIPT="$SCRIPT_DIR/validate.sh"
 SCHEMA_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/contracts/aussen.event.schema.json"
 
@@ -61,4 +62,29 @@ teardown() {
   run bash -c "echo -n | \"$VALIDATE_SCRIPT\" -s \"$SCHEMA_FILE\""
   assert_success
   assert_output --partial "⚠️  Keine Daten auf stdin erhalten."
+}
+
+@test "validate.sh: benötigt keine Schema-Temporärdatei im Checkout" {
+  local valid_file="$BATS_TMPDIR/valid-readonly-checkout.jsonl"
+  local fake_bin="$BATS_TMPDIR/fake-bin"
+  local tmp_root="$BATS_TMPDIR/runtime-tmp"
+  local real_mktemp
+  real_mktemp="$(command -v mktemp)"
+  mkdir -p "$fake_bin" "$tmp_root"
+  echo '{"ts":"2025-01-01T00:00:00Z","type":"news","source":"manual","title":"Test","summary":"","tags":[]}' > "$valid_file"
+  cat > "$fake_bin/mktemp" <<EOF
+#!/usr/bin/env bash
+case "\$1" in
+  "$REPO_ROOT"/*)
+    echo "mktemp im Checkout verboten" >&2
+    exit 97
+    ;;
+esac
+exec "$real_mktemp" "\$@"
+EOF
+  chmod +x "$fake_bin/mktemp"
+
+  run env PATH="$fake_bin:$PATH" TMPDIR="$tmp_root" "$VALIDATE_SCRIPT" -s "$SCHEMA_FILE" "$valid_file"
+  assert_success
+  assert_output --partial "OK: '$valid_file' ist valide."
 }

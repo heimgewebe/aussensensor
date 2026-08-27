@@ -325,6 +325,8 @@ def compare_json_set(
     if previous:
         if source_cfg.get("report_added", False):
             for identity in sorted(current_set - previous_items):
+                if identity in expected:
+                    continue
                 events.append(
                     make_event(
                         source_cfg=source_cfg,
@@ -447,7 +449,13 @@ def compare_json_value(
                 detail=detail,
             )
         )
-    elif previous and expected_configured and was_unexpected and not is_unexpected:
+    elif (
+        previous
+        and expected_configured
+        and was_unexpected
+        and not is_unexpected
+        and previous.get("value") != current_value
+    ):
         events.append(
             make_event(
                 source_cfg=source_cfg,
