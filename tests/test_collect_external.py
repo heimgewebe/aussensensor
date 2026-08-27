@@ -230,6 +230,57 @@ class CollectExternalTests(unittest.TestCase):
         )
         self.assertNotEqual(second_incident_events[0]["id"], first_incident_id)
 
+    def test_removing_expected_value_does_not_emit_false_restoration(self) -> None:
+        cfg = {
+            "id": "status",
+            "label": "Service status",
+            "adapter": "json-value",
+            "url": "https://status.example.com/api.json",
+            "source": "example:status",
+            "value_path": ["status", "indicator"],
+            "expected_value": "none",
+            "report_missing_on_baseline": True,
+            "tags": [],
+        }
+        events, state = collect_external.compare_json_value(
+            cfg,
+            self.observation({"status": {"indicator": "minor"}}),
+            None,
+            "2026-08-27T05:00:00Z",
+        )
+        self.assertEqual([event["features"]["change_kind"] for event in events], ["unexpected-value"])
+
+        no_expectation = dict(cfg)
+        no_expectation.pop("expected_value")
+        events, next_state = collect_external.compare_json_value(
+            no_expectation,
+            self.observation({"status": {"indicator": "minor"}}),
+            state,
+            "2026-08-27T05:10:00Z",
+        )
+        self.assertEqual(events, [])
+        self.assertFalse(next_state["unexpected"])
+
+    def test_explicit_null_expected_value_is_a_real_expectation(self) -> None:
+        cfg = {
+            "id": "nullable",
+            "label": "Nullable",
+            "adapter": "json-value",
+            "url": "https://example.com/value.json",
+            "source": "example:value",
+            "value_path": ["value"],
+            "expected_value": None,
+            "report_missing_on_baseline": True,
+            "tags": [],
+        }
+        events, _ = collect_external.compare_json_value(
+            cfg,
+            self.observation({"value": "unexpected"}),
+            None,
+            "2026-08-27T05:00:00Z",
+        )
+        self.assertEqual([event["features"]["change_kind"] for event in events], ["unexpected-value"])
+
     def test_generic_json_value_reports_change_without_expected_value(self) -> None:
         cfg = {
             "id": "version",

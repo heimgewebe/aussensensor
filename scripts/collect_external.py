@@ -397,7 +397,8 @@ def compare_json_value(
     fingerprint = sha256_text(canonical_json({"value": current_value}))
     previous_observed_at = previous.get("observed_at") if previous else None
     events: list[dict[str, Any]] = []
-    expected_value = source_cfg.get("expected_value", None)
+    expected_configured = "expected_value" in source_cfg
+    expected_value = source_cfg.get("expected_value")
     if expected_value is None and previous and previous.get("fingerprint") != fingerprint:
         before = previous.get("value")
         events.append(
@@ -414,7 +415,7 @@ def compare_json_value(
             )
         )
 
-    is_unexpected = expected_value is not None and current_value != expected_value
+    is_unexpected = expected_configured and current_value != expected_value
     was_unexpected = bool(previous and previous.get("unexpected", False))
     unexpected_value_changed = bool(previous and was_unexpected and previous.get("value") != current_value)
     if is_unexpected and (previous or source_cfg.get("report_missing_on_baseline", True)) and (
@@ -433,7 +434,7 @@ def compare_json_value(
                 detail=detail,
             )
         )
-    elif previous and was_unexpected and not is_unexpected:
+    elif previous and expected_configured and was_unexpected and not is_unexpected:
         events.append(
             make_event(
                 source_cfg=source_cfg,
