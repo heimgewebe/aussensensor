@@ -111,6 +111,29 @@ class CollectExternalTests(unittest.TestCase):
         self.assertEqual([event["features"]["change_kind"] for event in second_missing_events], ["missing-expected"])
         self.assertNotEqual(second_missing_events[0]["id"], first_missing_id)
 
+    def test_missing_expected_retry_id_ignores_unrelated_catalog_drift(self) -> None:
+        _, baseline_state = collect_external.compare_json_set(
+            self.set_cfg,
+            self.observation({"data": [{"id": "must/exist"}, {"id": "other/a"}]}),
+            None,
+            "2026-08-26T18:00:00Z",
+        )
+        first_events, _ = collect_external.compare_json_set(
+            self.set_cfg,
+            self.observation({"data": [{"id": "other/a"}]}),
+            baseline_state,
+            "2026-08-26T18:10:00Z",
+        )
+        retry_events, _ = collect_external.compare_json_set(
+            self.set_cfg,
+            self.observation({"data": [{"id": "other/b"}]}),
+            baseline_state,
+            "2026-08-26T18:11:00Z",
+        )
+        first_missing = next(event for event in first_events if event["features"]["change_kind"] == "missing-expected")
+        retry_missing = next(event for event in retry_events if event["features"]["change_kind"] == "missing-expected")
+        self.assertEqual(first_missing["id"], retry_missing["id"])
+
     def test_json_value_reports_unexpected_and_recovery(self) -> None:
         cfg = {
             "id": "status",
@@ -143,10 +166,30 @@ class CollectExternalTests(unittest.TestCase):
         )
         self.assertEqual(retry_events[0]["id"], first_incident_id)
 
+        escalated_events, escalated_state = collect_external.compare_json_value(
+            cfg,
+            self.observation({"status": {"indicator": "major", "description": "Major incident"}}),
+            first_state,
+            "2026-08-26T18:05:00Z",
+        )
+        self.assertEqual(
+            [event["features"]["change_kind"] for event in escalated_events],
+            ["unexpected-value"],
+        )
+        self.assertNotEqual(escalated_events[0]["id"], first_incident_id)
+
+        repeated_escalation_events, _ = collect_external.compare_json_value(
+            cfg,
+            self.observation({"status": {"indicator": "major", "description": "Major incident updated"}}),
+            escalated_state,
+            "2026-08-26T18:06:00Z",
+        )
+        self.assertEqual(repeated_escalation_events, [])
+
         recovered_events, recovered_state = collect_external.compare_json_value(
             cfg,
             self.observation({"status": {"indicator": "none", "description": "OK"}}),
-            first_state,
+            escalated_state,
             "2026-08-26T18:10:00Z",
         )
         self.assertEqual(
@@ -190,6 +233,32 @@ class CollectExternalTests(unittest.TestCase):
             "2026-08-26T18:10:00Z",
         )
         self.assertEqual([event["features"]["change_kind"] for event in events], ["changed"])
+
+    def test_generic_json_value_ignores_detail_only_change(self) -> None:
+        cfg = {
+            "id": "version",
+            "label": "Version",
+            "adapter": "json-value",
+            "url": "https://example.com/version.json",
+            "source": "example:version",
+            "value_path": ["version"],
+            "detail_path": ["description"],
+            "tags": [],
+        }
+        _, first_state = collect_external.compare_json_value(
+            cfg,
+            self.observation({"version": "1", "description": "first"}),
+            None,
+            "2026-08-26T18:00:00Z",
+        )
+        events, second_state = collect_external.compare_json_value(
+            cfg,
+            self.observation({"version": "1", "description": "wording changed"}),
+            first_state,
+            "2026-08-26T18:10:00Z",
+        )
+        self.assertEqual(events, [])
+        self.assertEqual(first_state["fingerprint"], second_state["fingerprint"])
 
     def test_event_id_is_observation_time_independent(self) -> None:
         cfg = dict(self.set_cfg)

@@ -179,7 +179,12 @@ fn main() -> Result<()> {
     // Pass 2: Stream using the same file handle
     let reader = JsonlReader::new(f);
 
-    let client = reqwest::blocking::Client::new();
+    // Do not follow redirects for an ingest write. A redirected POST must not
+    // be mistaken for durable Chronik acceptance by transactional callers.
+    let client = reqwest::blocking::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .context("failed to build HTTP client")?;
     let mut req = client
         .post(&args.url)
         .header(reqwest::header::CONTENT_TYPE, "application/x-ndjson");

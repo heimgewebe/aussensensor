@@ -44,6 +44,8 @@ Die Standardkonfiguration `config/external-sources.json` beobachtet derzeit:
 - Antwortgröße und Timeout sind begrenzt;
 - JSON muss syntaktisch gültig sein;
 - Quellen werden vor einer State-Fortschreibung vollständig gelesen;
+- produktive Collect-and-Push-Läufe benötigen einen exklusiven `flock` auf dem Vergleichs-State;
+- Chronik-Zustellung gilt nur bei einem direkten 2xx; Redirects werden nicht als Erfolg akzeptiert;
 - der Collector crawlt keine Links und führt keine Quelle als Code aus.
 
 Die DNS-Prüfung reduziert SSRF-Risiken, ist aber kein vollständiger Schutz gegen DNS-Rebinding. Der primäre Schutz bleibt die kleine explizite Host-Allowlist.
@@ -58,6 +60,8 @@ Jedes erzeugte `aussen.event` enthält unter anderem:
 - Change-Klasse und Schweregrad;
 - SHA-256 der tatsächlich gelesenen HTTP-Antwort;
 - Adapter- und Source-ID.
+Der V1 speichert die Rohantwort selbst nicht dauerhaft. Der SHA-256 bindet das Ereignis an die damals gelesenen Bytes und hilft bei Korrelation und Deduplizierung, ist aber allein kein später selbstgenügsam verifizierbares Rohbeweisarchiv. Eine dauerhafte Raw-Snapshot-Retention ist deshalb bewusst kein impliziter Bestandteil dieses V1.
+
 
 Die Event-ID hängt nicht vom aktuellen Retry-Pollzeitpunkt ab. Sie bindet den semantischen Übergang an den zuletzt erfolgreich gespeicherten Beobachtungszustand: Wiederholungen desselben unzugestellten Befunds bleiben deduplizierbar, ein späterer neuer Vorfall nach zwischenzeitlicher Erholung erhält dagegen eine neue ID.
 

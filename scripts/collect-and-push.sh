@@ -15,12 +15,14 @@ if [[ "$STATE_DIR" == "$STATE_FILE" ]]; then
 fi
 mkdir -p "$STATE_DIR"
 
-if command -v flock >/dev/null 2>&1; then
-  exec 9>"$STATE_DIR/external-evidence.lock"
-  if ! flock -n 9; then
-    echo "aussensensor: another collection run owns the state lock" >&2
-    exit 0
-  fi
+if ! command -v flock >/dev/null 2>&1; then
+  echo "aussensensor: flock is required for transactional state safety" >&2
+  exit 2
+fi
+exec 9>"$STATE_DIR/external-evidence.lock"
+if ! flock -n 9; then
+  echo "aussensensor: another collection run owns the state lock" >&2
+  exit 0
 fi
 
 NEXT_STATE="$(mktemp "$STATE_DIR/.external-evidence.next.XXXXXX.json")"

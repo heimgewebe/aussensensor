@@ -3,7 +3,7 @@
 [![validate (aussensensor feed)](https://github.com/heimgewebe/aussensensor/actions/workflows/validate-feed.yml/badge.svg)](https://github.com/heimgewebe/aussensensor/actions/workflows/validate-feed.yml)
 [![validate (aussen fixtures)](https://github.com/heimgewebe/aussensensor/actions/workflows/validate-aussen-fixtures.yml/badge.svg)](https://github.com/heimgewebe/aussensensor/actions/workflows/validate-aussen-fixtures.yml)
 
-aussensensor ist die kontrollierte Wahrnehmungsgrenze für externe, veränderliche Tatsachen. Neben dem manuellen Feed kann der V1-Collector explizit freigegebene HTTPS-JSON-Quellen beobachten, relevante Zustandsänderungen als `aussen.event` normalisieren und sie provenance-stark für Chronik bereitstellen. Er crawlt nicht frei im Web und besitzt weder Task- noch Policy-Autorität; Details siehe [External Evidence Collector](docs/external-evidence.md).
+aussensensor ist die kontrollierte Wahrnehmungsgrenze für externe, veränderliche Tatsachen. Neben dem manuellen Feed kann der V1-Collector explizit freigegebene HTTPS-JSON-Quellen beobachten, relevante Zustandsänderungen als `aussen.event` normalisieren und sie quell- und hashgebunden für Chronik bereitstellen. Er crawlt nicht frei im Web und besitzt weder Task- noch Policy-Autorität; Details siehe [External Evidence Collector](docs/external-evidence.md).
 
 ## Systemkontext und Zielsetzung
 - **Zielgruppe:** Operatoren und Analysten, die ein konsolidiertes Lagebild benötigen.
@@ -49,6 +49,7 @@ Der transaktionale Wrapper schreibt den Vergleichs-State erst nach erfolgreichem
 ## Voraussetzungen
 - POSIX-kompatible Shell (getestet mit `bash`)
 - Python 3.10+ für den External-Evidence-Collector
+- `flock` (typisch aus `util-linux`) für den transaktionalen Collector-State
 - `jq` ≥ 1.6 für JSON-Verarbeitung
 - `curl` für HTTP-Requests
 - `ajv-cli` (Node.js) für Validierung (`npm i -g ajv-cli@5.0.0`)

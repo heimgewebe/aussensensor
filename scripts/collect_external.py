@@ -82,6 +82,13 @@ def transition_fingerprint(before: Any, after: Any) -> str:
     return sha256_text(canonical_json({"before": before, "after": after}))
 
 
+def episode_fingerprint(previous_observed_at: str | None, identity: str, before: Any, after: Any) -> str:
+    return transition_fingerprint(
+        {"anchor": previous_observed_at, "identity": identity, "state": before},
+        {"identity": identity, "state": after},
+    )
+
+
 def normalized_tags(tags: Iterable[str], change: str) -> list[str]:
     out: list[str] = []
     for tag in [*tags, "external-evidence", f"change:{change}"]:
@@ -250,15 +257,6 @@ def compare_json_set(
     current_missing = expected - current_set
     previous_observed_at = previous.get("observed_at") if previous else None
     events: list[dict[str, Any]] = []
-    previous_semantic = None if previous is None else {
-        "observed_at": previous_observed_at,
-        "items": sorted(previous_items),
-        "missing_expected": sorted(previous_missing),
-    }
-    current_semantic = {"items": current_items, "missing_expected": sorted(current_missing)}
-    transition_fp = transition_fingerprint(previous_semantic, current_semantic)
-
-
     if previous:
         if source_cfg.get("report_added", False):
             for identity in sorted(current_set - previous_items):
@@ -271,7 +269,7 @@ def compare_json_set(
                         observed_at=observed_at,
                         evidence_sha256=observation.evidence_sha256,
                         previous_observed_at=previous_observed_at,
-                        fingerprint=transition_fp,
+                        fingerprint=episode_fingerprint(previous_observed_at, identity, "absent", "present"),
                     )
                 )
         if source_cfg.get("report_removed", True):
@@ -287,7 +285,7 @@ def compare_json_set(
                         observed_at=observed_at,
                         evidence_sha256=observation.evidence_sha256,
                         previous_observed_at=previous_observed_at,
-                        fingerprint=transition_fp,
+                        fingerprint=episode_fingerprint(previous_observed_at, identity, "present", "absent"),
                     )
                 )
 
@@ -303,7 +301,7 @@ def compare_json_set(
                     observed_at=observed_at,
                     evidence_sha256=observation.evidence_sha256,
                     previous_observed_at=previous_observed_at,
-                    fingerprint=transition_fp,
+                    fingerprint=episode_fingerprint(previous_observed_at, identity, "expected", "missing"),
                 )
             )
 
@@ -318,7 +316,7 @@ def compare_json_set(
                     observed_at=observed_at,
                     evidence_sha256=observation.evidence_sha256,
                     previous_observed_at=previous_observed_at,
-                    fingerprint=transition_fp,
+                    fingerprint=episode_fingerprint(previous_observed_at, identity, "missing", "expected"),
                 )
             )
 
@@ -343,19 +341,10 @@ def compare_json_value(
     detail = None
     if source_cfg.get("detail_path") is not None:
         detail = resolve_path(observation.payload, source_cfg["detail_path"])
-    fingerprint = sha256_text(canonical_json({"value": current_value, "detail": detail}))
+    fingerprint = sha256_text(canonical_json({"value": current_value}))
     previous_observed_at = previous.get("observed_at") if previous else None
     events: list[dict[str, Any]] = []
     expected_value = source_cfg.get("expected_value", None)
-    previous_semantic = None if previous is None else {
-        "observed_at": previous_observed_at,
-        "value": previous.get("value"),
-        "detail": previous.get("detail"),
-    }
-    current_semantic = {"value": current_value, "detail": detail}
-    transition_fp = transition_fingerprint(previous_semantic, current_semantic)
-
-
     if expected_value is None and previous and previous.get("fingerprint") != fingerprint:
         before = previous.get("value")
         events.append(
@@ -367,14 +356,17 @@ def compare_json_value(
                 observed_at=observed_at,
                 evidence_sha256=observation.evidence_sha256,
                 previous_observed_at=previous_observed_at,
-                fingerprint=transition_fp,
+                fingerprint=episode_fingerprint(previous_observed_at, repr(before), before, current_value),
                 detail=detail,
             )
         )
 
     is_unexpected = expected_value is not None and current_value != expected_value
     was_unexpected = bool(previous and previous.get("unexpected", False))
-    if is_unexpected and (previous or source_cfg.get("report_missing_on_baseline", True)) and not was_unexpected:
+    unexpected_value_changed = bool(previous and was_unexpected and previous.get("value") != current_value)
+    if is_unexpected and (previous or source_cfg.get("report_missing_on_baseline", True)) and (
+        not was_unexpected or unexpected_value_changed
+    ):
         events.append(
             make_event(
                 source_cfg=source_cfg,
@@ -384,7 +376,7 @@ def compare_json_value(
                 observed_at=observed_at,
                 evidence_sha256=observation.evidence_sha256,
                 previous_observed_at=previous_observed_at,
-                fingerprint=transition_fp,
+                fingerprint=episode_fingerprint(previous_observed_at, repr(current_value), previous.get("value") if previous else expected_value, current_value),
                 detail=detail,
             )
         )
@@ -398,7 +390,7 @@ def compare_json_value(
                 observed_at=observed_at,
                 evidence_sha256=observation.evidence_sha256,
                 previous_observed_at=previous_observed_at,
-                fingerprint=transition_fp,
+                fingerprint=episode_fingerprint(previous_observed_at, repr(current_value), previous.get("value"), current_value),
                 detail=detail,
             )
         )

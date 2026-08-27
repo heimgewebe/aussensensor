@@ -17,3 +17,4 @@ export/*
 .test-validate-ref.*
 metrics.json
 tools/aussensensor-push/target
+.test-collect-push.*
