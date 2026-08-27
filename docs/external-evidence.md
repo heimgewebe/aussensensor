@@ -41,7 +41,7 @@ Die Standardkonfiguration `config/external-sources.json` beobachtet derzeit:
 - keine Credentials in URLs;
 - localhost, `.local` und nicht öffentliche DNS-Ziele werden abgewiesen;
 - Redirect-Ziele werden erneut gegen Scheme und Host-Allowlist geprüft;
-- Antwortgröße und Timeout sind begrenzt;
+- Antwortgröße und ein echtes End-to-End-Wall-Clock-Zeitlimit für DNS, Connect und Read sind begrenzt;
 - JSON muss syntaktisch gültig sein;
 - Quellen werden vor einer State-Fortschreibung vollständig gelesen;
 - produktive Collect-and-Push-Läufe benötigen einen exklusiven `flock` auf dem Vergleichs-State;

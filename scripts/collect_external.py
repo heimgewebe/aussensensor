@@ -15,12 +15,14 @@ import hashlib
 import ipaddress
 import json
 import os
+import signal
 import socket
 import sys
 import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -35,6 +37,53 @@ USER_AGENT = "heimgewebe-aussensensor/1"
 
 class CollectorError(RuntimeError):
     """Fail-closed collector error."""
+
+
+class FetchDeadlineExceeded(TimeoutError):
+    """A source exceeded the configured end-to-end wall-clock deadline."""
+
+
+@contextmanager
+def wall_clock_deadline(timeout_seconds: float):
+    """Bound one fetch, including DNS/connect/read, by elapsed wall-clock time.
+
+    urllib/socket timeouts bound individual blocking operations.  A peer that
+    continuously trickles data can otherwise keep resetting that per-operation
+    budget.  On the Linux/Unix runtime used by Aussensensor, ITIMER_REAL
+    interrupts the whole synchronous fetch.  We fail closed rather than silently
+    weakening the contract when that primitive is unavailable or already owned.
+    """
+    required = ("SIGALRM", "ITIMER_REAL", "getitimer", "setitimer")
+    if any(not hasattr(signal, name) for name in required):
+        raise CollectorError("Wall-Clock-Deadline wird auf dieser Plattform nicht unterstützt")
+
+    try:
+        previous_delay, previous_interval = signal.getitimer(signal.ITIMER_REAL)
+    except (OSError, ValueError) as exc:
+        raise CollectorError(f"Wall-Clock-Deadline kann nicht gelesen werden: {exc}") from exc
+    if previous_delay > 0 or previous_interval > 0:
+        raise CollectorError("Aktiver Prozess-Timer verhindert eine sichere Wall-Clock-Deadline")
+
+    previous_handler = signal.getsignal(signal.SIGALRM)
+
+    def _deadline_handler(_signum, _frame):
+        raise FetchDeadlineExceeded(f"Gesamtzeitlimit von {timeout_seconds:g}s überschritten")
+
+    try:
+        signal.signal(signal.SIGALRM, _deadline_handler)
+        signal.setitimer(signal.ITIMER_REAL, timeout_seconds)
+    except (OSError, ValueError) as exc:
+        try:
+            signal.signal(signal.SIGALRM, previous_handler)
+        except (OSError, ValueError):
+            pass
+        raise CollectorError(f"Wall-Clock-Deadline kann nicht aktiviert werden: {exc}") from exc
+
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
 
 
 def utc_now() -> str:
@@ -206,19 +255,22 @@ def fetch_json(
     timeout_seconds: float,
     max_bytes: int,
 ) -> Observation:
-    validate_external_url(url, allowed_hosts)
-    opener = urllib.request.build_opener(SafeRedirectHandler(allowed_hosts))
-    request = urllib.request.Request(
-        url,
-        headers={"Accept": "application/json", "User-Agent": USER_AGENT},
-        method="GET",
-    )
     try:
-        with opener.open(request, timeout=timeout_seconds) as response:
-            length = response.headers.get("Content-Length")
-            if length is not None and int(length) > max_bytes:
-                raise CollectorError(f"Antwort überschreitet Maximalgröße ({length} > {max_bytes})")
-            raw = response.read(max_bytes + 1)
+        with wall_clock_deadline(timeout_seconds):
+            validate_external_url(url, allowed_hosts)
+            opener = urllib.request.build_opener(SafeRedirectHandler(allowed_hosts))
+            request = urllib.request.Request(
+                url,
+                headers={"Accept": "application/json", "User-Agent": USER_AGENT},
+                method="GET",
+            )
+            with opener.open(request, timeout=timeout_seconds) as response:
+                length = response.headers.get("Content-Length")
+                if length is not None and int(length) > max_bytes:
+                    raise CollectorError(f"Antwort überschreitet Maximalgröße ({length} > {max_bytes})")
+                raw = response.read(max_bytes + 1)
+    except CollectorError:
+        raise
     except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
         raise CollectorError(f"Abruf fehlgeschlagen für {url}: {exc}") from exc
     if len(raw) > max_bytes:
