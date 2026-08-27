@@ -56,6 +56,11 @@ class ExternalUrlSecurityTests(unittest.TestCase):
             with self.subTest(token=token), self.assertRaisesRegex(ValueError, "Nicht-endliche JSON-Zahl"):
                 collect_external.strict_json_loads('{"value":' + token + '}')
 
+    def test_strict_json_loads_rejects_floating_point_overflow(self) -> None:
+        for token in ("1e400", "-1e400"):
+            with self.subTest(token=token), self.assertRaisesRegex(ValueError, "Nicht-endliche JSON-Zahl"):
+                collect_external.strict_json_loads('{"items":[{"id":' + token + '}]}')
+
     def test_fetch_json_enforces_end_to_end_wall_clock_deadline(self) -> None:
         class SlowResponse:
             headers = {}

@@ -14,6 +14,7 @@ import argparse
 import hashlib
 import ipaddress
 import json
+import math
 import os
 import signal
 import socket
@@ -94,8 +95,19 @@ def _reject_nonfinite_json_constant(value: str) -> Any:
     raise ValueError(f"Nicht-endliche JSON-Zahl ist nicht erlaubt: {value}")
 
 
+def _parse_finite_json_float(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError(f"Nicht-endliche JSON-Zahl ist nicht erlaubt: {value}")
+    return parsed
+
+
 def strict_json_loads(value: str) -> Any:
-    return json.loads(value, parse_constant=_reject_nonfinite_json_constant)
+    return json.loads(
+        value,
+        parse_constant=_reject_nonfinite_json_constant,
+        parse_float=_parse_finite_json_float,
+    )
 
 
 def canonical_json(value: Any) -> str:
