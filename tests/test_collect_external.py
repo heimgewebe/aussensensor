@@ -126,6 +126,28 @@ class CollectExternalTests(unittest.TestCase):
                     collect_external.observation_scope_sha256(source_cfg),
                 )
 
+    def test_event_ids_are_bound_to_observation_scope(self) -> None:
+        cfg_a = dict(self.set_cfg)
+        cfg_b = {**self.set_cfg, "url": "https://example.com/other-models"}
+        payload = self.observation({"data": [{"id": "other/model"}]})
+
+        events_a, _ = collect_external.compare_json_set(
+            cfg_a, payload, None, "2026-08-27T17:50:00Z"
+        )
+        retry_a, _ = collect_external.compare_json_set(
+            cfg_a, payload, None, "2026-08-27T17:51:00Z"
+        )
+        events_b, _ = collect_external.compare_json_set(
+            cfg_b, payload, None, "2026-08-27T17:50:00Z"
+        )
+
+        self.assertEqual(events_a[0]["id"], retry_a[0]["id"])
+        self.assertNotEqual(events_a[0]["id"], events_b[0]["id"])
+        self.assertNotEqual(
+            events_a[0]["meta"]["observation_scope_sha256"],
+            events_b[0]["meta"]["observation_scope_sha256"],
+        )
+
     def test_observation_scope_ignores_expectation_and_reporting_edits(self) -> None:
         value_cfg = {
             "adapter": "json-value", "url": "https://example.com/data",
@@ -158,6 +180,79 @@ class CollectExternalTests(unittest.TestCase):
         self.assertEqual(collect_external.resolve_path(value, ["a", 0, "b"]), "ok")
         with self.assertRaises(collect_external.CollectorError):
             collect_external.resolve_path(value, ["missing"])
+
+    def test_strict_json_numeric_roundtrip_is_value_lossless(self) -> None:
+        huge_integer = "1" + ("0" * 400)
+        payload = collect_external.strict_json_loads(
+            '{"equivalent":0.10,"huge":' + huge_integer + ',"tiny":1e-1000000}'
+        )
+        rendered = collect_external.strict_json_dumps(payload, sort_keys=True)
+        reparsed = collect_external.strict_json_loads(rendered)
+
+        self.assertEqual(collect_external.canonical_json(payload), collect_external.canonical_json(reparsed))
+        self.assertIn('"huge":' + huge_integer, rendered)
+        self.assertIn('"tiny":1e-1000000', rendered)
+        self.assertEqual(
+            collect_external.canonical_json(collect_external.strict_json_loads("0.10")),
+            collect_external.canonical_json(collect_external.strict_json_loads("0.1")),
+        )
+
+    def test_json_decimals_preserve_precision_across_value_transitions(self) -> None:
+        cfg = {
+            "id": "precision",
+            "label": "Precision",
+            "adapter": "json-value",
+            "url": "https://example.com/precision",
+            "source": "example:precision",
+            "value_path": ["value"],
+            "tags": [],
+        }
+        first_payload = collect_external.strict_json_loads('{"value":0.1}')
+        second_payload = collect_external.strict_json_loads(
+            '{"value":0.10000000000000001}'
+        )
+        _, baseline = collect_external.compare_json_value(
+            cfg, self.observation(first_payload), None, "2026-08-27T17:52:00Z"
+        )
+        events, state = collect_external.compare_json_value(
+            cfg, self.observation(second_payload), baseline, "2026-08-27T17:53:00Z"
+        )
+
+        self.assertEqual(
+            [event["features"]["change_kind"] for event in events], ["changed"]
+        )
+        self.assertEqual(
+            collect_external.canonical_json(state["value"]), "0.10000000000000001"
+        )
+        rendered_state = collect_external.strict_json_dumps(
+            {"value": state["value"]}, sort_keys=True, indent=2
+        )
+        reparsed = collect_external.strict_json_loads(rendered_state)
+        self.assertEqual(
+            collect_external.canonical_json(reparsed["value"]), "0.10000000000000001"
+        )
+
+    def test_json_set_decimal_expectations_preserve_precision(self) -> None:
+        cfg = dict(self.set_cfg)
+        cfg["expected_items"] = [
+            collect_external.strict_json_loads("0.10000000000000001")
+        ]
+        payload = collect_external.strict_json_loads(
+            '{"data":[{"id":0.1}]}'
+        )
+        events, state = collect_external.compare_json_set(
+            cfg, self.observation(payload), None, "2026-08-27T17:54:00Z"
+        )
+
+        self.assertEqual(
+            [event["features"]["change_kind"] for event in events],
+            ["missing-expected"],
+        )
+        self.assertEqual(collect_external.canonical_json(state["items"][0]), "0.1")
+        self.assertEqual(
+            collect_external.canonical_json(state["missing_expected"][0]),
+            "0.10000000000000001",
+        )
 
     def test_json_set_expected_items_preserve_json_types(self) -> None:
         cfg = dict(self.set_cfg)

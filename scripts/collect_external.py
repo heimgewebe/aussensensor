@@ -26,12 +26,14 @@ import urllib.request
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Iterable
 
 STATE_SCHEMA_VERSION = 1
 CONFIG_SCHEMA_VERSION = 1
-SET_IDENTITY_ENCODING = "canonical-json-scalar-v1"
+SET_IDENTITY_ENCODING = "canonical-json-scalar-v3-exact-decimal"
+JSON_NUMBER_ENCODING = "exact-decimal-v1"
 DEFAULT_MAX_BYTES = 8 * 1024 * 1024
 DEFAULT_TIMEOUT_SECONDS = 15.0
 USER_AGENT = "heimgewebe-aussensensor/1"
@@ -96,9 +98,21 @@ def _reject_nonfinite_json_constant(value: str) -> Any:
     raise ValueError(f"Nicht-endliche JSON-Zahl ist nicht erlaubt: {value}")
 
 
-def _parse_finite_json_float(value: str) -> float:
-    parsed = float(value)
-    if not math.isfinite(parsed):
+def _parse_finite_json_decimal(value: str) -> Decimal:
+    try:
+        parsed = Decimal(value)
+    except InvalidOperation as exc:
+        raise ValueError(f"Ungültige JSON-Zahl: {value}") from exc
+    if not parsed.is_finite():
+        raise ValueError(f"Nicht-endliche JSON-Zahl ist nicht erlaubt: {value}")
+    # Preserve the previous bounded-number contract: values that overflow the
+    # runtime's ordinary float range are rejected, but accepted decimals keep
+    # their exact lexical precision as Decimal instead of being rounded.
+    try:
+        binary_float = float(parsed)
+    except (OverflowError, ValueError) as exc:
+        raise ValueError(f"Nicht-endliche JSON-Zahl ist nicht erlaubt: {value}") from exc
+    if not math.isfinite(binary_float):
         raise ValueError(f"Nicht-endliche JSON-Zahl ist nicht erlaubt: {value}")
     return parsed
 
@@ -107,17 +121,118 @@ def strict_json_loads(value: str) -> Any:
     return json.loads(
         value,
         parse_constant=_reject_nonfinite_json_constant,
-        parse_float=_parse_finite_json_float,
+        parse_float=_parse_finite_json_decimal,
     )
 
 
-def canonical_json(value: Any) -> str:
-    try:
-        return json.dumps(
-            value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+def _canonical_decimal_number(value: Decimal) -> str:
+    """Return a compact exact JSON number for one finite Decimal value."""
+    if not value.is_finite():
+        raise CollectorError(f"Nicht-endliche JSON-Zahl ist nicht erlaubt: {value}")
+    sign, raw_digits, exponent = value.as_tuple()
+    digits = list(raw_digits)
+    if not any(digits):
+        return "0"
+    while len(digits) > 1 and digits[-1] == 0:
+        digits.pop()
+        exponent += 1
+    coefficient = "".join(str(digit) for digit in digits)
+    adjusted = exponent + len(coefficient) - 1
+    prefix = "-" if sign else ""
+
+    # Fixed notation keeps common values readable without allowing compact tiny
+    # exponents such as 1e-1000000 to explode into enormous serialized strings.
+    if -6 <= adjusted <= 20:
+        point = len(coefficient) + exponent
+        if point <= 0:
+            return prefix + "0." + ("0" * (-point)) + coefficient
+        if point >= len(coefficient):
+            return prefix + coefficient + ("0" * (point - len(coefficient)))
+        return prefix + coefficient[:point] + "." + coefficient[point:]
+
+    mantissa = coefficient[0]
+    if len(coefficient) > 1:
+        mantissa += "." + coefficient[1:]
+    return f"{prefix}{mantissa}e{adjusted:+d}"
+
+
+def _strict_json_number(value: int | float | Decimal) -> str:
+    if isinstance(value, bool):
+        raise CollectorError("Boolescher Wert ist keine JSON-Zahl")
+    if isinstance(value, int):
+        # Canonicalize integers together with decimal/exponent spellings while
+        # keeping arbitrarily large JSON integers round-trippable.
+        try:
+            if math.isfinite(float(value)):
+                return _canonical_decimal_number(Decimal(value))
+        except OverflowError:
+            pass
+        return str(value)
+    if isinstance(value, Decimal):
+        return _canonical_decimal_number(value)
+    if not math.isfinite(value):
+        raise CollectorError(f"Nicht-endliche JSON-Zahl ist nicht erlaubt: {value}")
+    return _canonical_decimal_number(Decimal(repr(value)))
+
+
+def strict_json_dumps(
+    value: Any, *, sort_keys: bool = False, indent: int | None = None
+) -> str:
+    """Serialize strict JSON while preserving lossless Decimal number tokens."""
+    if indent is not None and indent < 0:
+        raise CollectorError("JSON-Einrückung darf nicht negativ sein")
+
+    def encode(current: Any, level: int) -> str:
+        if current is None:
+            return "null"
+        if current is True:
+            return "true"
+        if current is False:
+            return "false"
+        if isinstance(current, str):
+            return json.dumps(current, ensure_ascii=False)
+        if isinstance(current, (int, float, Decimal)) and not isinstance(current, bool):
+            return _strict_json_number(current)
+        if isinstance(current, (list, tuple)):
+            if not current:
+                return "[]"
+            rendered = [encode(item, level + 1) for item in current]
+            if indent is None:
+                return "[" + ",".join(rendered) + "]"
+            child_pad = " " * (indent * (level + 1))
+            pad = " " * (indent * level)
+            return "[\n" + child_pad + (",\n" + child_pad).join(rendered) + "\n" + pad + "]"
+        if isinstance(current, dict):
+            items = list(current.items())
+            if any(not isinstance(key, str) for key, _ in items):
+                raise CollectorError("JSON-Objektschlüssel müssen Strings sein")
+            if sort_keys:
+                items.sort(key=lambda item: item[0])
+            if not items:
+                return "{}"
+            rendered = [
+                (json.dumps(key, ensure_ascii=False), encode(item, level + 1))
+                for key, item in items
+            ]
+            if indent is None:
+                return "{" + ",".join(key + ":" + item for key, item in rendered) + "}"
+            child_pad = " " * (indent * (level + 1))
+            pad = " " * (indent * level)
+            body = (",\n" + child_pad).join(key + ": " + item for key, item in rendered)
+            return "{\n" + child_pad + body + "\n" + pad + "}"
+        raise CollectorError(
+            f"Wert vom Typ {type(current).__name__} ist nicht strikt JSON-serialisierbar"
         )
-    except ValueError as exc:
-        raise CollectorError(f"Wert ist nicht strikt JSON-serialisierbar: {exc}") from exc
+
+    return encode(value, 0)
+
+
+def canonical_json(value: Any) -> str:
+    return strict_json_dumps(value, sort_keys=True)
+
+
+def display_json(value: Any) -> str:
+    return canonical_json(value)
 
 
 def sha256_text(value: str) -> str:
@@ -134,12 +249,14 @@ def observation_scope_sha256(source_cfg: dict[str, Any]) -> str:
             "items_path": source_cfg["items_path"],
             "identity_path": source_cfg["identity_path"],
             "identity_encoding": SET_IDENTITY_ENCODING,
+            "json_number_encoding": JSON_NUMBER_ENCODING,
         }
     elif adapter == "json-value":
         scope = {
             "adapter": adapter,
             "url": source_cfg["url"],
             "value_path": source_cfg["value_path"],
+            "json_number_encoding": JSON_NUMBER_ENCODING,
         }
     else:
         raise CollectorError(f"Unbekannter Adapter: {adapter}")
@@ -163,13 +280,20 @@ def resolve_path(value: Any, path: Iterable[Any]) -> Any:
     return current
 
 
-def stable_event_id(source_id: str, change: str, identity: str, fingerprint: str) -> str:
+def stable_event_id(
+    source_id: str,
+    change: str,
+    identity: str,
+    fingerprint: str,
+    observation_scope_sha256_value: str,
+) -> str:
     material = canonical_json(
         {
             "source_id": source_id,
             "change": change,
             "identity": identity,
             "fingerprint": fingerprint,
+            "observation_scope_sha256": observation_scope_sha256_value,
         }
     )
     return f"aussen:{sha256_text(material)}"
@@ -213,9 +337,12 @@ def make_event(
 ) -> dict[str, Any]:
     label = str(source_cfg.get("label") or source_cfg["id"])
     source = str(source_cfg["source"])
+    scope_sha256 = observation_scope_sha256(source_cfg)
     title = f"{label}: {change} {identity}"[:300]
     event = {
-        "id": stable_event_id(str(source_cfg["id"]), change, identity, fingerprint),
+        "id": stable_event_id(
+            str(source_cfg["id"]), change, identity, fingerprint, scope_sha256
+        ),
         "type": str(source_cfg.get("event_type", "alert")),
         "source": source,
         "title": title,
@@ -233,6 +360,7 @@ def make_event(
             "observed_at": observed_at,
             "previous_observed_at": previous_observed_at,
             "evidence_sha256": evidence_sha256,
+            "observation_scope_sha256": scope_sha256,
         },
     }
     if detail is not None:
@@ -331,7 +459,7 @@ def fetch_json(
 
 
 def _identity_token(source_cfg: dict[str, Any], identity: Any, *, label: str) -> str:
-    if not isinstance(identity, (str, int, float)) or isinstance(identity, bool):
+    if not isinstance(identity, (str, int, float, Decimal)) or isinstance(identity, bool):
         raise CollectorError(f"{source_cfg['id']}: {label} ist kein skalarer JSON-Wert")
     return canonical_json(identity)
 
@@ -400,7 +528,7 @@ def compare_json_set(
                         source_cfg=source_cfg,
                         change="added",
                         identity=token,
-                        summary=f"{identity!r} ist neu in {source_cfg['source']} sichtbar.",
+                        summary=f"{display_json(identity)} ist neu in {source_cfg['source']} sichtbar.",
                         observed_at=observed_at,
                         evidence_sha256=observation.evidence_sha256,
                         previous_observed_at=previous_observed_at,
@@ -419,7 +547,7 @@ def compare_json_set(
                         source_cfg=source_cfg,
                         change="removed",
                         identity=token,
-                        summary=f"{identity!r} ist aus {source_cfg['source']} verschwunden.",
+                        summary=f"{display_json(identity)} ist aus {source_cfg['source']} verschwunden.",
                         observed_at=observed_at,
                         evidence_sha256=observation.evidence_sha256,
                         previous_observed_at=previous_observed_at,
@@ -438,7 +566,7 @@ def compare_json_set(
                     source_cfg=source_cfg,
                     change="missing-expected",
                     identity=token,
-                    summary=f"Erwarteter Wert {identity!r} fehlt in {source_cfg['source']}.",
+                    summary=f"Erwarteter Wert {display_json(identity)} fehlt in {source_cfg['source']}.",
                     observed_at=observed_at,
                     evidence_sha256=observation.evidence_sha256,
                     previous_observed_at=previous_observed_at,
@@ -457,7 +585,7 @@ def compare_json_set(
                     source_cfg=source_cfg,
                     change="expected-restored",
                     identity=token,
-                    summary=f"Erwarteter Wert {identity!r} ist in {source_cfg['source']} wieder vorhanden.",
+                    summary=f"Erwarteter Wert {display_json(identity)} ist in {source_cfg['source']} wieder vorhanden.",
                     observed_at=observed_at,
                     evidence_sha256=observation.evidence_sha256,
                     previous_observed_at=previous_observed_at,
@@ -506,7 +634,7 @@ def compare_json_value(
                 source_cfg=source_cfg,
                 change="changed",
                 identity=transition_identity,
-                summary=f"{source_cfg['source']} änderte sich von {before!r} auf {current_value!r}.",
+                summary=f"{source_cfg['source']} änderte sich von {display_json(before)} auf {display_json(current_value)}.",
                 observed_at=observed_at,
                 evidence_sha256=observation.evidence_sha256,
                 previous_observed_at=previous_observed_at,
@@ -528,7 +656,7 @@ def compare_json_value(
                 source_cfg=source_cfg,
                 change="unexpected-value",
                 identity=current_token,
-                summary=f"{source_cfg['source']} meldet {current_value!r}; erwartet ist {expected_value!r}.",
+                summary=f"{source_cfg['source']} meldet {display_json(current_value)}; erwartet ist {display_json(expected_value)}.",
                 observed_at=observed_at,
                 evidence_sha256=observation.evidence_sha256,
                 previous_observed_at=previous_observed_at,
@@ -553,7 +681,7 @@ def compare_json_value(
                 source_cfg=source_cfg,
                 change="expected-restored",
                 identity=current_token,
-                summary=f"{source_cfg['source']} entspricht wieder dem erwarteten Wert {expected_value!r}.",
+                summary=f"{source_cfg['source']} entspricht wieder dem erwarteten Wert {display_json(expected_value)}.",
                 observed_at=observed_at,
                 evidence_sha256=observation.evidence_sha256,
                 previous_observed_at=previous_observed_at,
@@ -708,7 +836,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             atomic_write_text(Path(args.output), rendered)
         state_target = Path(args.next_state or args.state)
-        atomic_write_text(state_target, json.dumps(next_state, ensure_ascii=False, sort_keys=True, indent=2) + "\n")
+        atomic_write_text(state_target, strict_json_dumps(next_state, sort_keys=True, indent=2) + "\n")
         print(
             f"aussensensor: sources={len(next_state['sources'])} events={len(events)} state={state_target}",
             file=sys.stderr,
