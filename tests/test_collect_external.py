@@ -287,6 +287,96 @@ class CollectExternalTests(unittest.TestCase):
         self.assertEqual(events, [])
         self.assertFalse(next_state["unexpected"])
 
+    def test_json_value_object_retry_id_is_canonical_across_key_order(self) -> None:
+        cfg = {
+            "id": "object-status",
+            "label": "Object status",
+            "adapter": "json-value",
+            "url": "https://status.example.com/api.json",
+            "source": "example:object-status",
+            "value_path": ["value"],
+            "expected_value": {"state": "ok"},
+            "report_missing_on_baseline": True,
+            "tags": [],
+        }
+        first_events, first_state = collect_external.compare_json_value(
+            cfg,
+            self.observation({"value": {"b": 2, "a": 1}}),
+            None,
+            "2026-08-27T14:20:00Z",
+        )
+        retry_events, retry_state = collect_external.compare_json_value(
+            cfg,
+            self.observation({"value": {"a": 1, "b": 2}}),
+            None,
+            "2026-08-27T14:21:00Z",
+        )
+        self.assertEqual(len(first_events), 1)
+        self.assertEqual(len(retry_events), 1)
+        self.assertEqual(first_events[0]["id"], retry_events[0]["id"])
+        self.assertEqual(first_state["fingerprint"], retry_state["fingerprint"])
+
+    def test_expected_json_value_comparison_distinguishes_booleans_from_numbers(self) -> None:
+        cases = [
+            (1, True),
+            ({"flag": 1}, {"flag": True}),
+            ([0], [False]),
+        ]
+        for expected_value, current_value in cases:
+            with self.subTest(expected_value=expected_value, current_value=current_value):
+                cfg = {
+                    "id": "typed-status",
+                    "label": "Typed status",
+                    "adapter": "json-value",
+                    "url": "https://status.example.com/api.json",
+                    "source": "example:typed-status",
+                    "value_path": ["value"],
+                    "expected_value": expected_value,
+                    "report_missing_on_baseline": True,
+                    "tags": [],
+                }
+                events, state = collect_external.compare_json_value(
+                    cfg,
+                    self.observation({"value": current_value}),
+                    None,
+                    "2026-08-27T14:22:00Z",
+                )
+                self.assertEqual(
+                    [event["features"]["change_kind"] for event in events],
+                    ["unexpected-value"],
+                )
+                self.assertTrue(state["unexpected"])
+
+    def test_unexpected_boolean_to_number_transition_is_not_suppressed(self) -> None:
+        cfg = {
+            "id": "typed-transition",
+            "label": "Typed transition",
+            "adapter": "json-value",
+            "url": "https://status.example.com/api.json",
+            "source": "example:typed-transition",
+            "value_path": ["value"],
+            "expected_value": 2,
+            "report_missing_on_baseline": True,
+            "tags": [],
+        }
+        _, state = collect_external.compare_json_value(
+            cfg,
+            self.observation({"value": True}),
+            None,
+            "2026-08-27T14:23:00Z",
+        )
+        events, next_state = collect_external.compare_json_value(
+            cfg,
+            self.observation({"value": 1}),
+            state,
+            "2026-08-27T14:24:00Z",
+        )
+        self.assertEqual(
+            [event["features"]["change_kind"] for event in events],
+            ["unexpected-value"],
+        )
+        self.assertTrue(next_state["unexpected"])
+
     def test_expectation_edit_matching_unchanged_value_does_not_emit_recovery(self) -> None:
         cfg = {
             "id": "status",

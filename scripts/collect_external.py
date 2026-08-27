@@ -409,30 +409,38 @@ def compare_json_value(
     detail = None
     if source_cfg.get("detail_path") is not None:
         detail = resolve_path(observation.payload, source_cfg["detail_path"])
+    current_token = canonical_json(current_value)
     fingerprint = sha256_text(canonical_json({"value": current_value}))
     previous_observed_at = previous.get("observed_at") if previous else None
+    previous_value = previous.get("value") if previous else None
+    previous_token = canonical_json(previous_value) if previous else None
     events: list[dict[str, Any]] = []
     expected_configured = "expected_value" in source_cfg
     expected_value = source_cfg.get("expected_value")
+    expected_token = canonical_json(expected_value) if expected_configured else None
+    value_changed = bool(previous and previous_token != current_token)
     if not expected_configured and previous and previous.get("fingerprint") != fingerprint:
-        before = previous.get("value")
+        before = previous_value
+        transition_identity = f"{previous_token} -> {current_token}"
         events.append(
             make_event(
                 source_cfg=source_cfg,
                 change="changed",
-                identity=f"{before!r} -> {current_value!r}",
+                identity=transition_identity,
                 summary=f"{source_cfg['source']} änderte sich von {before!r} auf {current_value!r}.",
                 observed_at=observed_at,
                 evidence_sha256=observation.evidence_sha256,
                 previous_observed_at=previous_observed_at,
-                fingerprint=episode_fingerprint(previous_observed_at, repr(before), before, current_value),
+                fingerprint=episode_fingerprint(
+                    previous_observed_at, transition_identity, before, current_value
+                ),
                 detail=detail,
             )
         )
 
-    is_unexpected = expected_configured and current_value != expected_value
+    is_unexpected = expected_configured and current_token != expected_token
     was_unexpected = bool(previous and previous.get("unexpected", False))
-    unexpected_value_changed = bool(previous and was_unexpected and previous.get("value") != current_value)
+    unexpected_value_changed = bool(previous and was_unexpected and value_changed)
     if is_unexpected and (previous or source_cfg.get("report_missing_on_baseline", True)) and (
         not was_unexpected or unexpected_value_changed
     ):
@@ -440,12 +448,17 @@ def compare_json_value(
             make_event(
                 source_cfg=source_cfg,
                 change="unexpected-value",
-                identity=repr(current_value),
+                identity=current_token,
                 summary=f"{source_cfg['source']} meldet {current_value!r}; erwartet ist {expected_value!r}.",
                 observed_at=observed_at,
                 evidence_sha256=observation.evidence_sha256,
                 previous_observed_at=previous_observed_at,
-                fingerprint=episode_fingerprint(previous_observed_at, repr(current_value), previous.get("value") if previous else expected_value, current_value),
+                fingerprint=episode_fingerprint(
+                    previous_observed_at,
+                    current_token,
+                    previous_value if previous else expected_value,
+                    current_value,
+                ),
                 detail=detail,
             )
         )
@@ -454,18 +467,20 @@ def compare_json_value(
         and expected_configured
         and was_unexpected
         and not is_unexpected
-        and previous.get("value") != current_value
+        and value_changed
     ):
         events.append(
             make_event(
                 source_cfg=source_cfg,
                 change="expected-restored",
-                identity=repr(current_value),
+                identity=current_token,
                 summary=f"{source_cfg['source']} entspricht wieder dem erwarteten Wert {expected_value!r}.",
                 observed_at=observed_at,
                 evidence_sha256=observation.evidence_sha256,
                 previous_observed_at=previous_observed_at,
-                fingerprint=episode_fingerprint(previous_observed_at, repr(current_value), previous.get("value"), current_value),
+                fingerprint=episode_fingerprint(
+                    previous_observed_at, current_token, previous_value, current_value
+                ),
                 detail=detail,
             )
         )
