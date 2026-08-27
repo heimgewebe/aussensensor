@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "collect_external.py"
 SPEC = importlib.util.spec_from_file_location("collect_external", MODULE_PATH)
@@ -39,6 +40,70 @@ class CollectExternalTests(unittest.TestCase):
             evidence_sha256=collect_external.sha256_text(raw),
             byte_count=len(raw),
         )
+
+    def test_collect_resets_previous_state_when_adapter_changes(self) -> None:
+        cases = [
+            (
+                {
+                    "id": "source",
+                    "label": "Source",
+                    "adapter": "json-set",
+                    "url": "https://example.com/data",
+                    "source": "example:source",
+                    "items_path": ["data"],
+                    "identity_path": ["id"],
+                    "report_added": True,
+                    "report_removed": True,
+                    "tags": [],
+                },
+                {
+                    "adapter": "json-value",
+                    "observed_at": "2026-08-27T14:00:00Z",
+                    "value": "old",
+                    "fingerprint": "old-fingerprint",
+                    "unexpected": False,
+                },
+                {"data": [{"id": "a"}, {"id": "b"}]},
+                "json-set",
+            ),
+            (
+                {
+                    "id": "source",
+                    "label": "Source",
+                    "adapter": "json-value",
+                    "url": "https://example.com/data",
+                    "source": "example:source",
+                    "value_path": ["value"],
+                    "tags": [],
+                },
+                {
+                    "adapter": "json-set",
+                    "observed_at": "2026-08-27T14:00:00Z",
+                    "items": ["old"],
+                    "missing_expected": [],
+                },
+                {"value": "current"},
+                "json-value",
+            ),
+        ]
+        for source_cfg, previous_state, payload, expected_adapter in cases:
+            with self.subTest(adapter=expected_adapter):
+                config = {
+                    "allowed_hosts": ["example.com"],
+                    "sources": [source_cfg],
+                }
+                state = {
+                    "schema_version": collect_external.STATE_SCHEMA_VERSION,
+                    "sources": {"source": previous_state},
+                }
+                with patch.object(
+                    collect_external, "fetch_json", return_value=self.observation(payload)
+                ):
+                    events, next_state = collect_external.collect(
+                        config, state, "2026-08-27T15:05:00Z"
+                    )
+                self.assertEqual(events, [])
+                self.assertEqual(next_state["sources"]["source"]["adapter"], expected_adapter)
 
     def test_resolve_path(self) -> None:
         value = {"a": [{"b": "ok"}]}

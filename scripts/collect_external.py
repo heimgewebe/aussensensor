@@ -592,6 +592,8 @@ def collect(config: dict[str, Any], state: dict[str, Any], observed_at: str) -> 
     for source_cfg in enabled_sources:
         source_id = source_cfg["id"]
         previous = state["sources"].get(source_id)
+        if previous is not None and previous.get("adapter") != source_cfg["adapter"]:
+            previous = None
         observation = observations[source_id]
         if source_cfg["adapter"] == "json-set":
             events, source_state = compare_json_set(source_cfg, observation, previous, observed_at)
