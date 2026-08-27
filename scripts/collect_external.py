@@ -422,6 +422,7 @@ class Observation:
     payload: Any
     evidence_sha256: str
     byte_count: int
+    observed_at: str | None = None
 
 
 def fetch_json(
@@ -445,6 +446,7 @@ def fetch_json(
                 if length is not None and int(length) > max_bytes:
                     raise CollectorError(f"Antwort überschreitet Maximalgröße ({length} > {max_bytes})")
                 raw = response.read(max_bytes + 1)
+                observed_at = utc_now()
     except CollectorError:
         raise
     except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
@@ -455,7 +457,12 @@ def fetch_json(
         payload = strict_json_loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, ValueError) as exc:
         raise CollectorError(f"Quelle liefert kein gültiges UTF-8-JSON: {url}: {exc}") from exc
-    return Observation(payload=payload, evidence_sha256=hashlib.sha256(raw).hexdigest(), byte_count=len(raw))
+    return Observation(
+        payload=payload,
+        evidence_sha256=hashlib.sha256(raw).hexdigest(),
+        byte_count=len(raw),
+        observed_at=observed_at,
+    )
 
 
 def _identity_token(source_cfg: dict[str, Any], identity: Any, *, label: str) -> str:
@@ -775,7 +782,11 @@ def render_ndjson(events: list[dict[str, Any]]) -> str:
     return "".join(canonical_json(event) + "\n" for event in events)
 
 
-def collect(config: dict[str, Any], state: dict[str, Any], observed_at: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def collect(
+    config: dict[str, Any],
+    state: dict[str, Any],
+    observed_at: str | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     allowed_hosts = {str(host).lower() for host in config["allowed_hosts"]}
     timeout = float(config.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS))
     max_bytes = int(config.get("max_response_bytes", DEFAULT_MAX_BYTES))
@@ -803,10 +814,15 @@ def collect(config: dict[str, Any], state: dict[str, Any], observed_at: str) -> 
         if previous is not None and previous.get("observation_scope_sha256") != scope_sha256:
             previous = None
         observation = observations[source_id]
+        source_observed_at = observed_at or observation.observed_at or utc_now()
         if source_cfg["adapter"] == "json-set":
-            events, source_state = compare_json_set(source_cfg, observation, previous, observed_at)
+            events, source_state = compare_json_set(
+                source_cfg, observation, previous, source_observed_at
+            )
         else:
-            events, source_state = compare_json_value(source_cfg, observation, previous, observed_at)
+            events, source_state = compare_json_value(
+                source_cfg, observation, previous, source_observed_at
+            )
         source_state["observation_scope_sha256"] = scope_sha256
         all_events.extend(events)
         next_state["sources"][source_id] = source_state
@@ -827,8 +843,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         config = load_config(Path(args.config))
         state = load_state(Path(args.state))
-        observed_at = utc_now()
-        events, next_state = collect(config, state, observed_at)
+        events, next_state = collect(config, state)
         rendered = render_ndjson(events)
         if args.output == "-":
             sys.stdout.write(rendered)
