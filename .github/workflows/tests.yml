@@ -17,14 +17,7 @@ concurrency:
       - "config/**"
       - "tools/aussensensor-push/**"
       - ".github/workflows/tests.yml"
-  pull_request:
-    paths:
-      - "scripts/**"
-      - "tests/**"
-      - "contracts/**"
-      - "config/**"
-      - "tools/aussensensor-push/**"
-      - ".github/workflows/tests.yml"
+  pull_request: {}
   workflow_dispatch:
 
 jobs:
